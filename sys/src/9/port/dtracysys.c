@@ -153,7 +153,10 @@ WRAP2(dtwrap_sysawait, AWAIT, sysawait, char *, uint)
 WRAP4(dtwrap_syspread, PREAD, syspread, int, void *, long, vlong)
 WRAP4(dtwrap_syspwrite, PWRITE, syspwrite, int, void *, long, vlong)
 WRAP2(dtwrap_systsemacquire, TSEMACQUIRE, systsemacquire, long *, ulong)
-
+WRAP3(dtwrap_sys_msgsend, SYS_MSGSEND, sys_msgsend, ulong, void*, uintptr);
+WRAP0(dtwrap_sys_msgwait, SYS_MSGWAIT, sys_msgwait);
+WRAP2(dtwrap_sys_msgrecv, SYS_MSGRECV, sys_msgrecv, void*, uintptr);
+WRAP2(dtwrap_sys_msgctl, SYS_MSGCTL, sys_msgctl, int, u32int);
 
 /* TODO: amd64 */
 WRAP4(dtwrap_sysseek, SEEK, sysseek, vlong*, int, vlong, int)
@@ -212,6 +215,10 @@ static Syscall *wraptab[]={
 	[PWRITE]	dtwrap_syspwrite,
 	[TSEMACQUIRE]	dtwrap_systsemacquire,
 	[_NSEC]		dtwrap_sys_nsec,
+	[SYS_MSGSEND]	dtwrap_sys_msgsend,
+	[SYS_MSGWAIT]	dtwrap_sys_msgwait,
+	[SYS_MSGRECV]	dtwrap_sys_msgrecv,
+	[SYS_MSGCTL]	dtwrap_sys_msgctl,
 };
 
 static void

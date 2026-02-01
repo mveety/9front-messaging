@@ -686,6 +686,7 @@ sysexec(va_list list)
 	up->pcycles = -up->kentry;
 	procsetup(up);
 	qunlock(&up->debug);
+	flushmailbox(&up->mbox);
 
 	up->errbuf0[0] = '\0';
 	up->errbuf1[0] = '\0';
@@ -1437,6 +1438,87 @@ sys_nsec(va_list list)
 	*v = todget(nil, nil);
 	return 0;
 }
+
+// int sys_msgsend(ulong tpid, void*, uintptr) -> int [+ errstr]
+uintptr
+sys_msgsend(va_list list)
+{
+	ulong targetpid;
+	void *msgdata;
+	uintptr msgsz;
+	Message *newmsg;
+	Proc *targetproc;
+	int index;
+
+	targetpid = va_arg(list, ulong);
+	msgdata = va_arg(list, void*);
+	msgsz = va_arg(list, uintptr);
+	if(msgdata == nil)
+		error(Ebadarg);
+	if(msgsz == 0)
+		error(Emsize);
+	validaddr((uintptr)msgdata, msgsz, 0);
+
+	index = procindex(targetpid);
+	if(index < 0)
+		error("non-existent process");
+	targetproc = proctab(index);
+	assert(targetproc);
+
+	newmsg = newmessage(msgdata, msgsz);
+	assert(newmsg);
+	
+	return (uintptr)psendmsg(targetproc, newmsg);
+}
+
+// sys_msgwait(void) -> uintptr [+ errstr]
+uintptr
+sys_msgwait(va_list list)
+{
+	USED(list);
+	return pwaitmsg();
+}
+
+// sys_msgrecv(void*, uintptr) -> int [+ errstr]
+uintptr
+sys_msgrecv(va_list list)
+{
+	void *dstbuf;
+	uintptr dstbufsz;
+	Message *fetchedmsg;
+
+	dstbuf = va_arg(list, void*);
+	dstbufsz = va_arg(list, uintptr);
+	if(dstbuf == nil)
+		error(Ebadarg);
+	if(dstbufsz == 0)
+		error("zero length message buffer");
+	validaddr((uintptr)dstbuf, dstbufsz, 1);
+
+	fetchedmsg = precvmsg(dstbufsz);
+	assert(fetchedmsg);
+	memset(dstbuf, 0, dstbufsz);
+	memmove(dstbuf, fetchedmsg->data, fetchedmsg->size);
+	freemessage(fetchedmsg);
+
+	return 0;
+}
+
+// msgctl(int, u32int) -> u32int
+uintptr
+sys_msgctl(va_list list)
+{
+	int op;
+	u32int msgctl;
+
+	op = va_arg(list, int);
+	msgctl = va_arg(list, u32int);
+
+	if(op != 0)
+		up->mbox.ctl = msgctl;
+	return (uintptr)up->mbox.ctl;
+}
+	
 
 #include "../port/systab.h"
 

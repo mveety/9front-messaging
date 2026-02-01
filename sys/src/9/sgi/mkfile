@@ -26,6 +26,7 @@ PORT=\
 	edf.$O\
 	fault.$O\
 	fptrap.$O\
+	msg.$O\
 	mul64fract.$O\
 	page.$O\
 	parse.$O\

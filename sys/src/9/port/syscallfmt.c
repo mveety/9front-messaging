@@ -59,6 +59,7 @@ void
 syscallfmt(ulong syscallno, uintptr pc, va_list list)
 {
 	long l;
+	ulong ul;
 	Fmt fmt;
 	void *v;
 	vlong vl;
@@ -306,6 +307,31 @@ syscallfmt(ulong syscallno, uintptr pc, va_list list)
 		v = va_arg(list, vlong*);
 		fmtprint(&fmt, "%#p", v);
 		break;
+	case SYS_MSGSEND:
+		ul = va_arg(list, long);
+		v = va_arg(list, void*);
+		p = va_arg(list, uintptr);
+		fmtprint(&fmt, "%lud", ul);
+		fmtprint(&fmt, "%p", v);
+		fmtprint(&fmt, "%p", p);
+		break;
+	case SYS_MSGWAIT:
+		break;
+	case SYS_MSGRECV:
+		v = va_arg(list, void*);
+		p = va_arg(list, uintptr);
+		fmtprint(&fmt, "%p", v);
+		fmtprint(&fmt, "%p", p);
+		break;
+	case SYS_MSGCTL:
+		i[0] = va_arg(list, int);
+		i[1] = va_arg(list, int);
+		if(i[0] != 0)
+			fmtprint(&fmt, "write");
+		else
+			fmtprint(&fmt, "read");
+		fmtprint(&fmt, "%x", i[1]);
+		break;
 	}
 
 	a = fmtstrflush(&fmt);
@@ -398,6 +424,11 @@ sysretfmt(ulong syscallno, va_list list, uintptr ret, uvlong start, uvlong stop)
 			vl = va_arg(list, vlong);
 			fmtprint(&fmt, " %lld", vl);
 		}
+		fmtprint(&fmt, " = %ld", (long)ret);
+		break;
+	case SYS_MSGRECV:
+		if((long)ret < 0)
+			errstr = up->syserrstr;
 		fmtprint(&fmt, " = %ld", (long)ret);
 		break;
 	case _NSEC:

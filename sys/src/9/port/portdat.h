@@ -16,6 +16,8 @@ typedef struct Image	Image;
 typedef struct Lock	Lock;
 typedef struct Log	Log;
 typedef struct Logflag	Logflag;
+typedef struct Message Message;
+typedef struct Mailbox Mailbox;
 typedef struct Mntcache Mntcache;
 typedef struct Mount	Mount;
 typedef struct Mntrah	Mntrah;
@@ -656,6 +658,7 @@ enum
 	Stopped,
 	Rendezvous,
 	Waitrelease,
+	Msgwait,
 
 	Proc_stopme = 1, 	/* devproc requests */
 	Proc_exitme,
@@ -689,6 +692,23 @@ struct Schedq
 	Proc*	head;
 	Proc*	tail;
 	int	n;
+};
+
+struct Message {
+	uintptr size;
+	void *data;
+	Message *next;
+};
+
+/* erlang-like message passing in-kernel mailbox */
+struct Mailbox
+{
+	QLock lock;
+	u32int ctl;
+	Message *head;
+	Message *tail;
+	uintptr msgin;
+	uintptr msgout;
 };
 
 struct Proc
@@ -821,6 +841,8 @@ struct Proc
 	
 	Watchpt	*watchpt;	/* watchpoints */
 	int	nwatchpt;
+
+	Mailbox mbox; /* for sys_msgsend and friends */
 };
 
 enum
@@ -1044,6 +1066,10 @@ struct PMach
 	Perf	perf;			/* performance counters */
 
 	uvlong	cyclefreq;		/* Frequency of user readable cycle counter */
+};
+
+enum {
+	MSGENABLE = (1<<0), /* allow process to receive messages */
 };
 
 /* queue state bits,  Qmsg, Qcoalesce, and Qkick can be set in qopen */

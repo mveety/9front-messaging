@@ -24,6 +24,7 @@ PORT=\
 	fault.$O\
 	iomap.$O\
 	memmap.$O\
+	msg.$O \
 	page.$O\
 	parse.$O\
 	pgrp.$O\

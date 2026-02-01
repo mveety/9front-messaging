@@ -51,6 +51,7 @@ char *statename[] =
 	"Stopped",
 	"Rendez",
 	"Waitrelease",
+	"Msgwait",
 };
 
 static void rebalance(void);
@@ -734,6 +735,11 @@ newproc(void)
 	p->cpu = 0;
 	p->lastupdate = MACHP(0)->ticks*Scaling;
 	p->edf = nil;
+	p->mbox.ctl = 0;
+	p->mbox.head = nil;
+	p->mbox.tail = nil;
+	p->mbox.msgin = 0;
+	p->mbox.msgout = 0;
 
 	return p;
 }
@@ -1054,6 +1060,10 @@ procinterrupt(Proc *p)
 		}
 		unlock(p->rgrp);
 		break;
+	case Msgwait:
+		print("pid %lud interrupted in msgwait\n", p->pid);
+		ready(p);
+		break;
 	}
 }
 
@@ -1373,6 +1383,7 @@ pexit(char *exitstr, int freemem)
 	up->notified = 0;
 	up->noteureg = nil;
 	up->dbgreg = nil;
+	flushmailbox(&up->mbox);
 
 	/* release debuggers */
 	if(up->pdbg != nil) {
@@ -1754,8 +1765,12 @@ killproc(Proc *p, int ctl)
 		p->procctl = ctl;
 	incref(&killnote);
 	pushnote(p, &killnote);
-	if(p->state == Stopped)
+	switch(p->state){
+	case Stopped:
+	case Msgwait:
 		ready(p);
+		break;
+	}
 }
 
 /*

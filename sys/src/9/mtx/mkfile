@@ -19,6 +19,7 @@ PORT=\
 	fault.$O\
 	iomap.$O\
 	log.$O\
+	msg.$O\
 	mul64fract.$O\
 	rebootcmd.$O\
 	page.$O\
