@@ -50,3 +50,7 @@
 #define	PWRITE		51
 #define	TSEMACQUIRE	52
 #define _NSEC		53
+#define SYS_MSGSEND	54
+#define SYS_MSGWAIT	55
+#define SYS_MSGRECV	56
+#define SYS_MSGCTL	57

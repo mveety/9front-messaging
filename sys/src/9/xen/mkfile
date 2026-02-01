@@ -23,6 +23,7 @@ PORT=\
 	edf.$O\
 	fault.$O\
 	iomap.$O\
+	msg.$O\
 	page.$O\
 	parse.$O\
 	pgrp.$O\
