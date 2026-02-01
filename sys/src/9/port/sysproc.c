@@ -1461,7 +1461,7 @@ sys_msgsend(va_list list)
 
 	index = procindex(targetpid);
 	if(index < 0)
-		error("non-existent process");
+		error(Enoproc);
 	targetproc = proctab(index);
 	assert(targetproc);
 
@@ -1492,7 +1492,7 @@ sys_msgrecv(va_list list)
 	if(dstbuf == nil)
 		error(Ebadarg);
 	if(dstbufsz == 0)
-		error("zero length message buffer");
+		error(Ezerobuf);
 	validaddr((uintptr)dstbuf, dstbufsz, 1);
 
 	fetchedmsg = precvmsg(dstbufsz);

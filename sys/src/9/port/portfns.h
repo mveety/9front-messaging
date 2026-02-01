@@ -190,6 +190,7 @@ Cmdtab*		lookupcmd(Cmdbuf*, Cmdtab*, int);
 Page*		lookpage(Image*, uintptr);
 #define		MS2NS(n) (((vlong)(n))*1000000LL)
 void		machinit(void);
+uintptr		mailboxsz(Mailbox*);
 void*		mallocz(ulong, int);
 void*		malloc(ulong);
 void*		mallocalign(ulong, ulong, long, ulong);

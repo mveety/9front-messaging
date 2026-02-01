@@ -53,3 +53,10 @@ extern char Edirseek[];		/* seek in directory */
 extern char Etoolong[];		/* name too long */
 extern char Echange[];		/* media or partition has changed */
 extern char Emsize[];		/* message size too small */
+
+extern char Egoaway[];		/* process does not accept messages */
+extern char Enomsgs[];		/* no messages */
+extern char Embxseek[];		/* seek in mailbox */
+extern char Ezerobuf[];		/* zero length message buffer */
+extern char Esmolbuf[];		/* message buffer too small */
+extern char Enoproc[];		/* non-existent process */
