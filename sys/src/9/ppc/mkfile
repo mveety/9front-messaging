@@ -20,6 +20,7 @@ PORT=\
 	edf.$O\
 	fault.$O\
 	log.$O\
+	msg.$O\
 	rebootcmd.$O\
 	page.$O\
 	parse.$O\
