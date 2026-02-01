@@ -741,6 +741,14 @@ struct IOchunk
 	ulong	len;
 } IOchunk;
 
+/* message passing */
+enum {
+	Mctlread = 0,
+	Mctlwrite = 1,
+
+	MSGENABLE = (1<<0),
+};
+
 extern	_Noreturn void	_exits(char*);
 
 extern	_Noreturn void	abort(void);
@@ -796,6 +804,11 @@ extern	long	write(int, void*, long);
 extern	long	writev(int, IOchunk*, int);
 extern	int	wstat(char*, uchar*, int);
 extern	void*	rendezvous(void*, void*);
+
+extern	int sys_msgsend(ulong, void*, uintptr);
+extern	uintptr sys_msgwait(void);
+extern	uintptr sys_msgrecv(void*, uintptr);
+extern	u32int sys_msgctl(int, u32int);
 
 extern	Dir*	dirstat(char*);
 extern	Dir*	dirfstat(int);
