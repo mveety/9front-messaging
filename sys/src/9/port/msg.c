@@ -9,9 +9,6 @@
 #include "tos.h"
 #include "ureg.h"
 
-char Egoaway[] = "process does not accept messages";
-char Enomsgs[] = "no messages";
-
 Message*
 newmessage(void *data, uintptr sz)
 {
@@ -98,7 +95,7 @@ remove_message(Mailbox *mbox)
 	return fetched;
 }
 
-static uintptr
+uintptr
 mailboxsz(Mailbox *mbox)
 {
 	uintptr sz = 0;
@@ -131,7 +128,7 @@ psendmsg(Proc *proc, Message *msg)
 		// isn't accepting messages be an error?
 		// should it even signal to the sender that there's a
 		// problem?
-		error("proc not accepting messages");
+		error(Egoaway);
 		// return -1;
 	}
 	print("cpu%d: msgsend %lud -> %lud\n",
@@ -172,7 +169,7 @@ pwaitmsg(void)
 			qunlock(&up->mbox.lock);
 			print("cpu%d: %lud msgwait interrupted\n",
 					up->mach->machno, up->pid);
-			error("interrupted");
+			error(Eintr);
 		}
 	}
 	sz = up->mbox.head->size;
@@ -201,7 +198,7 @@ precvmsg(uintptr minsz)
 	// message before fetching it, so accept 0 for this case.
 	if(minsz > 0 && up->mbox.head->size > minsz){
 		qunlock(&up->mbox.lock);
-		error("message buffer too small");
+		error(Esmolbuf);
 	}
 	newmsg = remove_message(&up->mbox);
 	print("cpu%d: %lud msgrecv: msg sz = %p\n",

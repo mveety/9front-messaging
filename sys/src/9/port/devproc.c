@@ -23,6 +23,7 @@ enum
 #endif
 	Qkregs,
 	Qmem,
+	Qmailbox,
 	Qnote,
 	Qnotefpregs,
 	Qnoteid,
@@ -79,6 +80,7 @@ enum{
 };
 
 #define	STATSIZE	(2*28+12+9*12)
+
 /*
  * Status, fd, and ns are left fully readable (0444) because of their use in debugging,
  * particularly on shared servers.
@@ -95,6 +97,7 @@ Dirtab procdir[] =
 #endif
 	"kregs",	{Qkregs},	sizeof(Ureg),		0400,
 	"mem",		{Qmem},		0,			0000,
+	"mailbox",	{Qmailbox},	0,			0666,
 	"note",		{Qnote},	0,			0000,
 	"notefpregs",	{Qnotefpregs},	sizeof(FPsave),		0000,
 	"noteid",	{Qnoteid},	0,			0664,
@@ -435,6 +438,11 @@ procopen(Chan *c, int omode0)
 	case Qfd:
 		if(omode != OREAD)
 			error(Eperm);
+		break;
+
+	case Qmailbox:
+		if(omode == OWRITE && !(p->mbox.ctl & MSGENABLE))
+			error(Egoaway);
 		break;
 
 	case Qctl:
@@ -949,6 +957,22 @@ procread(Chan *c, void *va, long n, vlong off)
 	case Qppid:
 		return readnum(offset, va, n, p->parentpid, NUMSIZE);
 
+	case Qmailbox:
+		qlock(&p->mbox.lock);
+		memset(&statbuf[0], 0, sizeof(statbuf));
+		// mbox.ctl mbox.msgin mbox.msgout mailboxsz(&mbox)
+		j = snprint(&statbuf[0], sizeof(statbuf), "%x %llud %llud %llud",
+					p->mbox.ctl, (uvlong)p->mbox.msgin,
+					(uvlong)p->mbox.msgout, (uvlong)mailboxsz(&p->mbox));
+		qunlock(&p->mbox.lock);
+		if(offset >= j)
+			return 0;
+		if(offset+n > j)
+			n = j - offset;
+		assert(sizeof(statbuf)-offset >= n);
+		memmove(va, &statbuf[offset], n);
+		return n;
+
 	case Qprofile:
 		s = p->seg[TSEG];
 		if(s == nil || s->profile == nil)
@@ -1178,6 +1202,8 @@ procwrite(Chan *c, void *va, long n, vlong off)
 	ulong offset;
 	uchar *rptr;
 	Proc *p;
+	char *msgtmp;
+	Message *msg;
 
 	offset = off;
 	if(c->qid.type & QTDIR)
@@ -1276,6 +1302,23 @@ procwrite(Chan *c, void *va, long n, vlong off)
 
 	case Qwatchpt:
 		writewatchpt(p, va, n, off);
+		break;
+
+	case Qmailbox:
+		if(off > 0)
+			error(Embxseek);
+		if(n <= 0)
+			error(Eio);
+		// I need to sure to terminate this with a nil
+		// it's likely it's going to be text.
+		msgtmp = malloc(n+1);
+		if(!msgtmp)
+			error(Enomem);
+		memset(msgtmp, 0, n+1);
+		memmove(msgtmp, va, n);
+		msg = newmessage(msgtmp, n+1);
+		psendmsg(p, msg);
+		free(msgtmp);
 		break;
 
 	default:
