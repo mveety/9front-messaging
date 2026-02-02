@@ -765,9 +765,9 @@ struct Message {
 
 struct Mailbox {
 	QLock lock;
-	Message *head;
-	Message *tail;
-	Message *cur;
+	uintptr len;
+	uintptr i;
+	Message **msgs;
 };
 
 int			msgenable(void);
