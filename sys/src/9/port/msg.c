@@ -141,7 +141,8 @@ psendmsg(Proc *proc, Message *msg)
 	proc->mbox.msgin++;
 
 	qunlock(&proc->mbox.lock);
-	ready(proc);
+	if(proc->state == Msgsleep)
+		ready(proc);
 
 	return 0;
 }
