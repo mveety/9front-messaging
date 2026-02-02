@@ -658,7 +658,7 @@ enum
 	Stopped,
 	Rendezvous,
 	Waitrelease,
-	Msgwait,
+	Msgsleep,
 
 	Proc_stopme = 1, 	/* devproc requests */
 	Proc_exitme,

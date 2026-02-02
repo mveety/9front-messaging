@@ -49,6 +49,8 @@ flushmailbox(Mailbox *mbox)
 	qlock(&mbox->lock);
 	for(mb = mbox->head; mb != nil; mb = freemessage(mb))
 		;;
+	mbox->head = nil;
+	mbox->tail = nil;
 	mbox->ctl = 0;
 	mbox->msgin = 0;
 	mbox->msgout = 0;
@@ -65,8 +67,10 @@ add_message(Mailbox *mbox, Message *msg)
 		assert(mbox->tail == nil);
 		mbox->head = msg;
 		mbox->tail = msg;
-	} else
+	} else {
 		mbox->tail->next = msg;
+		mbox->tail = msg;
+	}
 
 	return 0;
 }
@@ -137,8 +141,7 @@ psendmsg(Proc *proc, Message *msg)
 	proc->mbox.msgin++;
 
 	qunlock(&proc->mbox.lock);
-	if(proc->state == Msgwait)
-		ready(proc);
+	ready(proc);
 
 	return 0;
 }
@@ -155,7 +158,7 @@ pwaitmsg(void)
 		return 0;
 	}
 	if(up->mbox.head == nil) {
-		up->state = Msgwait;
+		up->state = Msgsleep;
 		print("cpu%d: %lud msgwait\n", up->mach->machno, up->pid);
 		qunlock(&up->mbox.lock);
 		waited = 1;
