@@ -47,6 +47,7 @@ CFILES=\
 	memmove.c\
 	memset.c\
 	mktemp.c\
+	msg.c\
 	muldiv.c\
 	nan.c\
 	needsrcquote.c\
