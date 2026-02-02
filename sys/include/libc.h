@@ -749,6 +749,38 @@ enum {
 	MSGENABLE = (1<<0),
 };
 
+/* userspace api */
+typedef struct Mailbox Mailbox;
+typedef struct Message Message;
+
+struct Message {
+	s32int sentinel;
+	uintptr len;
+	void *data;
+	Message *next;
+};
+
+struct Mailbox {
+	QLock lock;
+	Message *head;
+	Message *tail;
+	Message *cur;
+};
+
+int			msgenable(void);
+int			msgdisable(void);
+Mailbox*	mailbox(void);
+void		flushmailbox(Mailbox*);
+void		freemailbox(Mailbox*);
+uvlong		mailboxsz(Mailbox*);
+Message*	message(int, void*, uintptr);
+Message*	freemsg(Message*);
+Message*	selectmsg(Mailbox*, Message*);
+int			msgsend(int, Message*);
+Message*	msgrecv(Mailbox*);
+Message*	msgrecvfilter(Mailbox*, int*, uvlong);
+
+
 extern	_Noreturn void	_exits(char*);
 
 extern	_Noreturn void	abort(void);
