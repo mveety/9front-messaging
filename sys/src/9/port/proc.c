@@ -51,7 +51,7 @@ char *statename[] =
 	"Stopped",
 	"Rendez",
 	"Waitrelease",
-	"Msgwait",
+	"Msgsleep",
 };
 
 static void rebalance(void);
@@ -1070,8 +1070,8 @@ procinterrupt(Proc *p)
 		}
 		unlock(p->rgrp);
 		break;
-	case Msgwait:
-		print("pid %lud interrupted in msgwait\n", p->pid);
+	case Msgsleep:
+		print("pid %lud interrupted in msgsleep\n", p->pid);
 		ready(p);
 		break;
 	}
@@ -1786,7 +1786,7 @@ killproc(Proc *p, int ctl)
 	pushnote(p, &killnote);
 	switch(p->state){
 	case Stopped:
-	case Msgwait:
+	case Msgsleep:
 		ready(p);
 		break;
 	}
