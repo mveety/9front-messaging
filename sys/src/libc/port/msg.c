@@ -10,6 +10,7 @@ basically the first four bytes are the magic number,
 
 enum {
 	MsgMagic = 0xdeadbeef,
+	MailboxSize = 2,
 };
 
 typedef struct {
@@ -57,10 +58,10 @@ unmarshal_message(MMessage *src)
 	u32int magic;
 	s32int sentinel;
 
-	assert(src);
-	assert(src->len > sizeof(u32int)+sizeof(s32int));
-	assert(src->data);
-
+	if(!src)
+		return nil;
+	if(src->len <= sizeof(u32int)+sizeof(s32int))
+		return nil;
 	if(!(dst = mallocz(sizeof(Message), 1)))
 		return nil;
 	if(!(dst->data = mallocz(src->len-(2*sizeof(s32int)), 1))){
@@ -167,16 +168,45 @@ mailbox(void)
 
 	if(!(mbox = mallocz(sizeof(Mailbox), 1)))
 		return nil;
+	if(!(mbox->msgs = mallocz(MailboxSize*sizeof(Mailbox*), 1))){
+		free(mbox);
+		return nil;
+	}
+	mbox->len = MailboxSize;
 	return mbox;
+}
+
+static int
+grow_mailbox(Mailbox *mbox)
+{
+	Message **oldmsgs;
+	uintptr oldlen;
+	Message **newmsgs;
+	uintptr newlen;
+
+	oldmsgs = mbox->msgs;
+	oldlen = mbox->len;
+	newlen = oldlen*2;
+	if(!(newmsgs = mallocz(newlen*sizeof(Message*), 1)))
+		return -1;
+	memcpy(newmsgs, oldmsgs, oldlen*sizeof(Message*));
+	mbox->msgs = newmsgs;
+	mbox->len = newlen;
+	free(oldmsgs);
+	return 0;
 }
 
 static void
 _flushmailbox(Mailbox *mbox)
 {
-	Message *msg;
+	uintptr i;
 
-	for(msg = mbox->head; msg != nil; msg = freemsg(msg))
-		;;
+	for(i = 0; i < mbox->len; i++)
+		if(mbox->msgs[i] != nil){
+			freemsg(mbox->msgs[i]);
+			mbox->msgs[i] = nil;
+		}
+	mbox->i = 0;
 }
 
 void
@@ -192,29 +222,42 @@ freemailbox(Mailbox *mbox)
 {
 	qlock(&mbox->lock);
 	_flushmailbox(mbox);
+	free(mbox->msgs);
 	free(mbox);
 }
 
-static void
+static int
 add_message(Mailbox *mbox, Message *msg)
 {
-	if(mbox->head == nil){
-		assert(mbox->tail == nil);
-		assert(mbox->cur == nil);
-		mbox->head = msg;
-		mbox->tail = msg;
-	} else
-		mbox->tail->next = msg;
+	uintptr i;
+
+	for(i = 0; i < mbox->len; i++)
+		if(mbox->msgs[i] == nil){
+			mbox->msgs[i] = msg;
+			return 0;
+		}
+
+	if(grow_mailbox(mbox) < 0)
+		return -1;
+
+	for(i = 0; i < mbox->len; i++)
+		if(mbox->msgs[i] == nil){
+			mbox->msgs[i] = msg;
+			return 0;
+		}
+
+	return -2;
 }
 
 uvlong
 mailboxsz(Mailbox *mbox)
 {
 	uvlong size = 0;
-	Message *m;
+	uintptr i;
 
-	for(m = mbox->head; m != nil; m = m->next)
-		size++;
+	for(i = 0; i < mbox->len; i++)
+		if(mbox->msgs[i] != nil)
+			size++;
 
 	return size;
 }
@@ -222,26 +265,17 @@ mailboxsz(Mailbox *mbox)
 Message*
 selectmsg(Mailbox *mbox, Message *msg)
 {
-	Message *cur;
-	Message *prev = nil;
+	uintptr i;
 
 	qlock(&mbox->lock);
-	for(cur = mbox->head; cur != nil; cur = cur->next){
-		if(cur == msg){
-			if(prev == nil)
-				mbox->head = cur->next;
-			else
-				prev->next = cur->next;
-			if(msg == mbox->cur)
-				mbox->cur = cur->next;
-			if(msg == mbox->tail)
-				mbox->tail = prev;
-			msg->next = nil;
+
+	for(i = 0; i < mbox->len; i++)
+		if(mbox->msgs[i] == msg){
+			mbox->msgs[i] = nil;
 			qunlock(&mbox->lock);
 			return msg;
 		}
-		prev = cur;
-	}
+
 	qunlock(&mbox->lock);
 	return nil;
 }
@@ -284,6 +318,22 @@ _msgrecv(void)
 	return msg;
 }
 
+static Message*
+_nextunread(Mailbox *mbox)
+{
+	uintptr i;
+
+	// return the next unselected message from the mailbox
+	for(i = mbox->i; i < mbox->len; i++)
+		if(mbox->msgs[i] != nil){
+			mbox->i = i+1;
+			return mbox->msgs[i];
+		}
+
+	mbox->i = 0;
+	return nil;
+}
+
 Message*
 msgrecv(Mailbox *mbox)
 {
@@ -293,8 +343,20 @@ msgrecv(Mailbox *mbox)
 		return _msgrecv();
 
 	qlock(&mbox->lock);
+
+	// fetch the next unread message
+	msg = _nextunread(mbox);
+	if(msg){
+		qunlock(&mbox->lock);
+		return msg;
+	}
+
+	// reset and wait
 	msg = _msgrecv();
-	add_message(mbox, msg);
+	if(msg)
+		add_message(mbox, msg);
+
+	qunlock(&mbox->lock);
 	return msg;
 }
 
@@ -328,19 +390,36 @@ msgrecvfilter(Mailbox *mbox, int *sentinels, uvlong nsentinels)
 	if(mbox == nil)
 		return _msgrecvfilter(sentinels, nsentinels);
 
-	if(nsentinels == 0 || sentinels == nil){
-		if(!(msg = _msgrecv()))
-			return nil;
-		add_message(mbox, msg);
-		return msg;
-	}
+	if(nsentinels == 0 || sentinels == nil)
+		return msgrecv(mbox);
 
-	for(;;){
-		if(!(msg = _msgrecv()))
-			return nil;
+	qlock(&mbox->lock);
+
+	// check the mailbox first
+	do {
+		msg = _nextunread(mbox);
+		if(msg){
+			for(i = 0; i < nsentinels; i++)
+				if(msg->sentinel == sentinels[i]){
+					qunlock(&mbox->lock);
+					return msg;
+				}
+		}
+	} while(msg != nil);
+
+	for(;;) {
+		msg = _msgrecv();
+		if(!msg)
+			break;
+
 		add_message(mbox, msg);
 		for(i = 0; i < nsentinels; i++)
-			if(msg->sentinel == sentinels[i])
+			if(msg->sentinel == sentinels[i]){
+				qunlock(&mbox->lock);
 				return msg;
+			}
 	}
+
+	qunlock(&mbox->lock);
+	return nil;
 }
