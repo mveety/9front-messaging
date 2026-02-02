@@ -9,7 +9,7 @@ typedef uintptr Syscall(va_list);
 
 !
 
-sed 's/#define[ 	]*([A-Z0-9_][A-Z0-9_]*).*/SYS\1/; s/SYSSYSR1/SYSR1/' $file |
+sed 's/#define[ 	]*([A-Z0-9_][A-Z0-9_]*).*/SYS\1/; s/SYSSYSR1/SYSR1/; s/SYSSYS_/SYS_/' $file |
 	tr A-Z a-z |
 	sed 's/.*/Syscall &;/'
 
@@ -22,6 +22,7 @@ sam -d $file >[2] /dev/null <<'!'
 ,s/#define.([A-Z0-9_]+).*/	[\1]	SYS\1,/g
 ,x/SYS[A-Z0-9_]+,/ | tr A-Z a-z
 ,x/syssysr1/c/sysr1
+,s/syssys_/sys_/g
 ,x/sys_x[0-9]*/c/sysdeath
 ,x v/\[......+\]/ s/\]/]	
 ,p
@@ -39,6 +40,7 @@ sam -d $file >[2] /dev/null <<'!'
 ,x/_"/c/"
 ,x/Sysr1/c/Running
 ,x/Rendezvous/c/Rendez
+,x/Sys_msg/c/Msg
 ,x v/\[......+\]/ s/\]/]	
 ,p
 !
