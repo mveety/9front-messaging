@@ -24,30 +24,32 @@ unmarshal_message(MMessage *src)
 {
 	Message *dst;
 	u32int magic;
-	s32int tag;
 
-	assert(src);
-	assert(src->len > sizeof(u32int)+sizeof(s32int));
-	assert(src->data);
-
-	if(!(dst = mallocz(sizeof(Message), 1)))
+	if(!src)
 		return nil;
-	if(!(dst->data = mallocz(src->len-(2*sizeof(s32int)), 1))){
-		free(dst);
-		return nil;
-	}
-	dst->len = src->len - (2*sizeof(s32int));
 
-	magic = *((u32int*)src->data);
-	tag = *((s32int*)(src->data+4));
-	if(magic != MsgMagic){
-		free(dst->data);
-		free(dst);
+	/* try to verify format validity */
+	if(src->len <= 3*sizeof(u32int)){
 		werrstr("malformed message");
 		return nil;
 	}
-	dst->tag = tag;
-	memmove(dst->data, &src->data[8], dst->len);
+	magic = *((u32int*)src->data);
+	if(magic != MsgMagic){
+		werrstr("malformed message");
+		return nil;
+	}
+
+	if(!(dst = mallocz(sizeof(Message), 1)))
+		return nil;
+	if(!(dst->data = mallocz(src->len-(3*sizeof(s32int)), 1))){
+		free(dst);
+		return nil;
+	}
+
+	dst->len = src->len - (3*sizeof(s32int));
+	dst->tag = *((s32int*)(src->data+4));
+	dst->pid = *((s32int*)(src->data+8));
+	memmove(dst->data, &src->data[12], dst->len);
 
 	return dst;
 }
