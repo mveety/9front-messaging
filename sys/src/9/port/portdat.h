@@ -682,6 +682,14 @@ struct Message {
 	Message *next;
 };
 
+enum {
+	MSGENABLE = (1<<0), /* allow process to receive messages */
+//	MSGMONITOR = (1<<1), /* accept monitor messages */
+//	MSGPROCS = (1<<2), /* accept process messages */
+
+	MSGALLUSERS = (1<<3), /* allow messages from other users */
+};
+
 /* erlang-like message passing in-kernel mailbox */
 struct Mailbox
 {
@@ -1054,10 +1062,6 @@ struct PMach
 	Perf	perf;			/* performance counters */
 
 	uvlong	cyclefreq;		/* Frequency of user readable cycle counter */
-};
-
-enum {
-	MSGENABLE = (1<<0), /* allow process to receive messages */
 };
 
 /* queue state bits,  Qmsg, Qcoalesce, and Qkick can be set in qopen */
