@@ -60,9 +60,6 @@ flushmailbox(Mailbox *mbox)
 static int
 add_message(Mailbox *mbox, Message *msg)
 {
-	if(!(mbox->ctl & MSGENABLE))
-		return -1;
-
 	if(mbox->head == nil){
 		assert(mbox->tail == nil);
 		mbox->head = msg;
@@ -124,17 +121,30 @@ psendmsg(Proc *proc, Message *msg)
 
 	qlock(&proc->mbox.lock);
 
-	if(add_message(&proc->mbox, msg) < 0){
-		qunlock(&proc->mbox.lock);
-		print("cpu%d: msgsend %lud -> %lud: dropped\n",
-				up->mach->machno, up->pid, proc->pid);
+	// are messages enabled?
+	if(!(proc->mbox.ctl & MSGENABLE)){
 		// my question here is should send to a process that
 		// isn't accepting messages be an error?
 		// should it even signal to the sender that there's a
 		// problem?
+		print("cpu%d: msgsend %lud -> %lud: dropped\n",
+				up->mach->machno, up->pid, proc->pid);
+		qunlock(&proc->mbox.lock);
 		error(Egoaway);
-		// return -1;
 	}
+
+	// are user permissions good?
+	if(!(proc->mbox.ctl & MSGALLUSERS)){
+		if(strcmp(up->user, proc->user) != 0) {
+			print("cpu%d: msgsend %lud -> %lud: dropped\n",
+				up->mach->machno, up->pid, proc->pid);
+			qunlock(&proc->mbox.lock);
+			error(Eperm);
+		}
+	}
+
+	add_message(&proc->mbox, msg);
+
 	print("cpu%d: msgsend %lud -> %lud\n",
 			up->mach->machno, up->pid, proc->pid);
 	up->mbox.msgout++;
