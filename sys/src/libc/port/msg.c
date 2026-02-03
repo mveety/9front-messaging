@@ -310,6 +310,8 @@ _msgrecv(void)
 		werrstr("zero-length message");
 		return nil;
 	}
+	if((intptr)(mmsg.len) == -1)
+		return nil; // errstr should = interrupted
 	if(!(mmsg.data = mallocz(mmsg.len, 1)))
 		return nil;
 
