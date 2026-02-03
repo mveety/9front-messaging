@@ -42,7 +42,7 @@ marshal_message(Message *src)
 		free(dst);
 		return nil;
 	}
-	dst->len = src->len + 2*sizeof(s32int);
+	dst->len = src->len + 3*sizeof(s32int);
 
 	*((u32int*)dst->data) = MsgMagic;
 	*((s32int*)(dst->data+4)) = src->tag;

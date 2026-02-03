@@ -1518,7 +1518,7 @@ sys_msgctl(va_list list)
 		up->mbox.ctl = msgctl;
 	return (uintptr)up->mbox.ctl;
 }
-	
+
 
 #include "../port/systab.h"
 
