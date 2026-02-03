@@ -4,8 +4,9 @@
 /*
 wire format
 basically the first four bytes are the magic number,
-(u32int), the next four are the sentinel (s32int),
- and the rest is the actual message contents.
+(u32int), the next four are the tag (s32int), the
+sender's pid (s32int), and the rest is the actual
+message contents.
 */
 
 enum {
@@ -14,7 +15,7 @@ enum {
 };
 
 typedef struct {
-	uintptr len; /* includes the sentinel */
+	uintptr len; /* includes the tag */
 	char *data;
 } MMessage;
 
@@ -37,15 +38,16 @@ marshal_message(Message *src)
 
 	if(!(dst = mallocz(sizeof(MMessage), 1)))
 		return nil;
-	if(!(dst->data = mallocz(src->len + (2*sizeof(s32int)), 1))){
+	if(!(dst->data = mallocz(src->len + (3*sizeof(s32int)), 1))){
 		free(dst);
 		return nil;
 	}
 	dst->len = src->len + 2*sizeof(s32int);
 
 	*((u32int*)dst->data) = MsgMagic;
-	*((s32int*)(dst->data+4)) = src->sentinel;
-	memmove(dst->data+8, src->data, src->len);
+	*((s32int*)(dst->data+4)) = src->tag;
+	*((s32int*)(dst->data+8)) = src->pid;
+	memmove(dst->data+12, src->data, src->len);
 
 	return dst;
 }
@@ -56,30 +58,32 @@ unmarshal_message(MMessage *src)
 {
 	Message *dst;
 	u32int magic;
-	s32int sentinel;
 
 	if(!src)
 		return nil;
-	if(src->len <= sizeof(u32int)+sizeof(s32int))
-		return nil;
-	if(!(dst = mallocz(sizeof(Message), 1)))
-		return nil;
-	if(!(dst->data = mallocz(src->len-(2*sizeof(s32int)), 1))){
-		free(dst);
-		return nil;
-	}
-	dst->len = src->len - (2*sizeof(s32int));
 
-	magic = *((u32int*)src->data);
-	sentinel = *((s32int*)(src->data+4));
-	if(magic != MsgMagic){
-		free(dst->data);
-		free(dst);
+	/* try to verify format validity */
+	if(src->len <= 3*sizeof(u32int)){
 		werrstr("malformed message");
 		return nil;
 	}
-	dst->sentinel = sentinel;
-	memmove(dst->data, &src->data[8], dst->len);
+	magic = *((u32int*)src->data);
+	if(magic != MsgMagic){
+		werrstr("malformed message");
+		return nil;
+	}
+
+	if(!(dst = mallocz(sizeof(Message), 1)))
+		return nil;
+	if(!(dst->data = mallocz(src->len-(3*sizeof(s32int)), 1))){
+		free(dst);
+		return nil;
+	}
+
+	dst->len = src->len - (3*sizeof(s32int));
+	dst->tag = *((s32int*)(src->data+4));
+	dst->pid = *((s32int*)(src->data+8));
+	memmove(dst->data, &src->data[12], dst->len);
 
 	return dst;
 }
@@ -112,7 +116,7 @@ msgdisable(void)
 }
 
 Message*
-message(int sentinel, void *data, uintptr len)
+message(int tag, void *data, uintptr len)
 {
 	Message *msg;
 
@@ -128,7 +132,7 @@ message(int sentinel, void *data, uintptr len)
 	if(!(msg = mallocz(sizeof(Message), 1)))
 		return nil;
 
-	msg->sentinel = sentinel;
+	msg->tag = tag;
 	if(data == nil && len == 0) {
 		/* zero-length messages need to have some payload */
 		if(!(msg->data = mallocz(1, 1))){
@@ -144,6 +148,7 @@ message(int sentinel, void *data, uintptr len)
 		free(msg);
 		return nil;
 	}
+	msg->pid = getpid();
 	msg->len = len;
 	memmove(msg->data, data, len);
 
@@ -361,36 +366,36 @@ msgrecv(Mailbox *mbox)
 }
 
 static Message*
-_msgrecvfilter(int *sentinels, uvlong nsentinels)
+_msgrecvfilter(int *tags, uvlong ntags)
 {
 	Message *msg;
 	uvlong i;
 
-	if(nsentinels == 0)
+	if(ntags == 0)
 		return _msgrecv();
-	if(sentinels == nil)
+	if(tags == nil)
 		return _msgrecv();
 
 	for(;;){
 		if(!(msg = _msgrecv()))
 			return nil;
-		for(i = 0; i < nsentinels; i++)
-			if(msg->sentinel == sentinels[i])
+		for(i = 0; i < ntags; i++)
+			if(msg->tag == tags[i])
 				return msg;
 		freemsg(msg);
 	}
 }
 
 Message*
-msgrecvfilter(Mailbox *mbox, int *sentinels, uvlong nsentinels)
+msgrecvfilter(Mailbox *mbox, int *tags, uvlong ntags)
 {
 	Message *msg;
 	uvlong i;
 
 	if(mbox == nil)
-		return _msgrecvfilter(sentinels, nsentinels);
+		return _msgrecvfilter(tags, ntags);
 
-	if(nsentinels == 0 || sentinels == nil)
+	if(ntags == 0 || tags == nil)
 		return msgrecv(mbox);
 
 	qlock(&mbox->lock);
@@ -399,8 +404,8 @@ msgrecvfilter(Mailbox *mbox, int *sentinels, uvlong nsentinels)
 	do {
 		msg = _nextunread(mbox);
 		if(msg){
-			for(i = 0; i < nsentinels; i++)
-				if(msg->sentinel == sentinels[i]){
+			for(i = 0; i < ntags; i++)
+				if(msg->tag == tags[i]){
 					qunlock(&mbox->lock);
 					return msg;
 				}
@@ -413,8 +418,8 @@ msgrecvfilter(Mailbox *mbox, int *sentinels, uvlong nsentinels)
 			break;
 
 		add_message(mbox, msg);
-		for(i = 0; i < nsentinels; i++)
-			if(msg->sentinel == sentinels[i]){
+		for(i = 0; i < ntags; i++)
+			if(msg->tag == tags[i]){
 				qunlock(&mbox->lock);
 				return msg;
 			}

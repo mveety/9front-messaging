@@ -15,7 +15,7 @@ enum {
 char *argv0;
 
 typedef struct {
-	uintptr len; /* includes the sentinel */
+	uintptr len; /* includes the tag */
 	char *data;
 } MMessage;
 
@@ -24,7 +24,7 @@ unmarshal_message(MMessage *src)
 {
 	Message *dst;
 	u32int magic;
-	s32int sentinel;
+	s32int tag;
 
 	assert(src);
 	assert(src->len > sizeof(u32int)+sizeof(s32int));
@@ -39,14 +39,14 @@ unmarshal_message(MMessage *src)
 	dst->len = src->len - (2*sizeof(s32int));
 
 	magic = *((u32int*)src->data);
-	sentinel = *((s32int*)(src->data+4));
+	tag = *((s32int*)(src->data+4));
 	if(magic != MsgMagic){
 		free(dst->data);
 		free(dst);
 		werrstr("malformed message");
 		return nil;
 	}
-	dst->sentinel = sentinel;
+	dst->tag = tag;
 	memmove(dst->data, &src->data[8], dst->len);
 
 	return dst;
@@ -55,8 +55,8 @@ unmarshal_message(MMessage *src)
 void
 usage(void)
 {
-	fprint(2, "usage: %s [-R|-F] [-S sentinel] [-n times] -s pid message\n", argv0);
-	fprint(2, "       %s [-R|-F|-D] [-n times] -r\n", argv0);
+	fprint(2, "usage: %s [-R|-F] [-T tag] [-n times] -s pid message\n", argv0);
+	fprint(2, "       %s [-R|-F|-D] [-A] [-n times] -r\n", argv0);
 	exits("usage");
 }
 
@@ -69,7 +69,9 @@ main(int argc, char *argv[])
 	char *msgdata;
 	uintptr msglen;
 	int ntimes = 1;
-	int sentinel = 0;
+	int tag = 0;
+	u32int octl;
+	u32int ctlextra = 0;
 	Message *msg = nil;
 	MMessage tmp;
 
@@ -94,8 +96,11 @@ main(int argc, char *argv[])
 	case 'D':
 		type = Detect;
 		break;
-	case 'S':
-		sentinel = atoi(EARGF(usage()));
+	case 'T':
+		tag = atoi(EARGF(usage()));
+		break;
+	case 'A':
+		ctlextra |= MSGALLUSERS;
 		break;
 	case 'h':
 	default:
@@ -118,7 +123,7 @@ main(int argc, char *argv[])
 		msgdata = strdup(argv[0]);
 		msglen = strlen(msgdata)+1;
 		if(type == Formatted){
-			msg = message(sentinel, msgdata, msglen);
+			msg = message(tag, msgdata, msglen);
 			for(int i = 0; i < ntimes; i++)
 				if(msgsend(target, msg) < 0) {
 					fprint(2, "error: unable to send message to %lud: %r\n", target);
@@ -142,17 +147,19 @@ main(int argc, char *argv[])
 		switch(type){
 		case Formatted:
 			msgenable();
+			octl = sys_msgctl(Mctlread, 0);
+			sys_msgctl(Mctlwrite, octl|ctlextra);
 			for(int i = 0; i < ntimes; i++) {
 				if(!(msg = msgrecv(nil))){
 					fprint(2, "error: msgrecv: %r\n");
 					exits("msgrecv fail");
 				}
-				fprint(2, "got message (type %d, size %p) \"%s\"\n", msg->sentinel, msg->len, msg->data);
+				fprint(2, "got message (type %d, size %p) \"%s\"\n", msg->tag, msg->len, msg->data);
 			}
 			break;
 		case Detect:
 		case Raw:
-			sys_msgctl(Mctlwrite, MSGENABLE); // accept messages
+			sys_msgctl(Mctlwrite, MSGENABLE|ctlextra); // accept messages
 			for(int i = 0; i < ntimes; i++){
 				msglen = sys_msgwait();
 				if(msglen == 0){
@@ -172,7 +179,7 @@ main(int argc, char *argv[])
 					msg = unmarshal_message(&tmp);
 				}
 				if(msg != nil){
-					fprint(2, "got message (type %d, size %p) \"%s\"\n", msg->sentinel, msg->len, msg->data);
+					fprint(2, "got message (type %d, size %p) \"%s\"\n", msg->tag, msg->len, msg->data);
 					freemsg(msg);
 					msg = nil;
 				} else

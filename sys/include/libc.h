@@ -746,7 +746,11 @@ enum {
 	Mctlread = 0,
 	Mctlwrite = 1,
 
-	MSGENABLE = (1<<0),
+	MSGENABLE = (1<<0), /* allow process to receive messages */
+//	MSGMONITOR = (1<<1), /* accept monitor messages */
+//	MSGPROCS = (1<<2), /* accept process messages */
+
+	MSGALLUSERS = (1<<3), /* allow messages from other users */
 };
 
 /* userspace api */
@@ -754,8 +758,9 @@ typedef struct Mailbox Mailbox;
 typedef struct Message Message;
 
 struct Message {
-	s32int sentinel;
+	s32int tag;
 	uintptr len;
+	s32int pid;
 	void *data;
 	Message *next;
 };
