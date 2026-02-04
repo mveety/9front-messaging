@@ -228,6 +228,7 @@ Mhead*		newmhead(Chan*);
 Mount*		newmount(Chan*, int, char*);
 Image*		newimage(ulong);
 Message*	newmessage(void*, uintptr);
+Message*	newstdmessage(int, uvlong, void*, uintptr);
 Page*		newpage(uintptr, QLock*);
 Path*		newpath(char*);
 Pgrp*		newpgrp(void);

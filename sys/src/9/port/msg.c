@@ -9,6 +9,10 @@
 #include "tos.h"
 #include "ureg.h"
 
+enum {
+	MsgMagic = 0xdeadbeef,
+};
+
 Message*
 newmessage(void *data, uintptr sz)
 {
@@ -25,6 +29,32 @@ newmessage(void *data, uintptr sz)
 	}
 	memset(new->data, 0, sz);
 	memmove(new->data, data, sz);
+	return new;
+}
+
+Message*
+newstdmessage(int tag, uvlong pid, void *srcdata, uintptr sz)
+{
+	Message *new;
+	char *data;
+
+	if(!(new = mallocz(sizeof(Message), 1)))
+		error(Enomem);
+
+	new->size = sz + (3*sizeof(s32int));
+	new->next = nil;
+	new->data = mallocz(new->size, 1);
+	if(!new->data){
+		free(new);
+		error(Enomem);
+	}
+	data = new->data;
+
+	*((u32int*)data) = MsgMagic;
+	*((s32int*)(data+4)) = tag;
+	*((s32int*)(data+8)) = (s32int)pid;
+	memmove(data+12, srcdata, sz);
+
 	return new;
 }
 

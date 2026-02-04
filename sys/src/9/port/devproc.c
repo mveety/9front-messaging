@@ -1316,7 +1316,8 @@ procwrite(Chan *c, void *va, long n, vlong off)
 			error(Enomem);
 		memset(msgtmp, 0, n+1);
 		memmove(msgtmp, va, n);
-		msg = newmessage(msgtmp, n+1);
+		/* msg = newmessage(msgtmp, n+1); */
+		msg = newstdmessage(0, up->pid, msgtmp, n+1);
 		psendmsg(p, msg);
 		free(msgtmp);
 		break;
