@@ -1,5 +1,6 @@
 #include <u.h>
 #include <libc.h>
+#include <msg.h>
 
 /*
 wire format
