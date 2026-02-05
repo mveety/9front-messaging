@@ -2,6 +2,19 @@
 typedef struct Mailbox Mailbox;
 typedef struct Message Message;
 
+/* message passing */
+enum {
+	Mctlread = 0,
+	Mctlwrite = 1,
+
+	MSGENABLE = (1<<0), /* allow process to receive messages */
+//	MSGMONITOR = (1<<1), /* accept monitor messages */
+//	MSGPROCS = (1<<2), /* accept process messages */
+
+	MSGALLUSERS = (1<<3), /* allow messages from other users */
+};
+
+
 struct Message {
 	s32int tag;
 	uintptr len;
