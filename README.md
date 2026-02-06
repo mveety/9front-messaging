@@ -31,12 +31,11 @@ This repo contains a kernel which add four message passing system calls. Some ex
 
 Standard message format (in rough C):
 ```
-struct {
+struct { 
 	u32int magic = 0xdeadbeef;
-	u32int pid;
 	u32int tag;
-	u32int size;
-	void payload[size];
+	u32int pid;
+	char payload[msgsize-(3*sizeof(u32int))];
 }
 ```
 
