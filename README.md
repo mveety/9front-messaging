@@ -32,6 +32,7 @@ This repo contains a kernel which add four message passing system calls. Some ex
 Standard message format (in rough C):
 ```
 struct {
+	u32int magic = 0xdeadbeef;
 	u32int pid;
 	u32int tag;
 	u32int size;
