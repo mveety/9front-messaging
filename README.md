@@ -1,6 +1,6 @@
 # Plan 9 Message Passing Kernel + libc
 
-This repo contains my kernel which add four message passing system calls.
+This repo contains my kernel which add four message passing system calls. Some examples are [here](https://github.com/mveety/p9messaging).
 
 ## System Calls
 * `int msg_send(ulong pid, void *message, uintptr message_size)`
