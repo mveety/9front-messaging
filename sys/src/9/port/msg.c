@@ -157,8 +157,8 @@ psendmsg(Proc *proc, Message *msg)
 		// isn't accepting messages be an error?
 		// should it even signal to the sender that there's a
 		// problem?
-		print("cpu%d: msgsend %lud -> %lud: dropped\n",
-				up->mach->machno, up->pid, proc->pid);
+		//print("cpu%d: msgsend %lud -> %lud: dropped\n",
+		//		up->mach->machno, up->pid, proc->pid);
 		qunlock(&proc->mbox.lock);
 		error(Egoaway);
 	}
@@ -166,8 +166,8 @@ psendmsg(Proc *proc, Message *msg)
 	// are user permissions good?
 	if(!(proc->mbox.ctl & MSGALLUSERS)){
 		if(strcmp(up->user, proc->user) != 0) {
-			print("cpu%d: msgsend %lud -> %lud: dropped\n",
-				up->mach->machno, up->pid, proc->pid);
+		//	print("cpu%d: msgsend %lud -> %lud: dropped\n",
+		//		up->mach->machno, up->pid, proc->pid);
 			qunlock(&proc->mbox.lock);
 			error(Eperm);
 		}
@@ -175,8 +175,8 @@ psendmsg(Proc *proc, Message *msg)
 
 	add_message(&proc->mbox, msg);
 
-	print("cpu%d: msgsend %lud -> %lud\n",
-			up->mach->machno, up->pid, proc->pid);
+	//print("cpu%d: msgsend %lud -> %lud\n",
+	//		up->mach->machno, up->pid, proc->pid);
 	up->mbox.msgout++;
 	proc->mbox.msgin++;
 
@@ -200,7 +200,7 @@ pwaitmsg(void)
 	}
 	if(up->mbox.head == nil) {
 		up->state = Msgsleep;
-		print("cpu%d: %lud msgwait\n", up->mach->machno, up->pid);
+		//print("cpu%d: %lud msgwait\n", up->mach->machno, up->pid);
 		qunlock(&up->mbox.lock);
 		waited = 1;
 		sched();
@@ -211,14 +211,14 @@ pwaitmsg(void)
 			// you end up here if you get a note(?) or so
 			// and no messages have arrived
 			qunlock(&up->mbox.lock);
-			print("cpu%d: %lud msgwait interrupted\n",
-					up->mach->machno, up->pid);
+			//print("cpu%d: %lud msgwait interrupted\n",
+			//		up->mach->machno, up->pid);
 			error(Eintr);
 		}
 	}
 	sz = up->mbox.head->size;
-	print("cpu%d: %lud msgwait: new msg sz = %p\n",
-			up->mach->machno, up->pid, sz);
+	//print("cpu%d: %lud msgwait: new msg sz = %p\n",
+	//		up->mach->machno, up->pid, sz);
 	qunlock(&up->mbox.lock);
 	return sz;
 }
@@ -245,8 +245,8 @@ precvmsg(uintptr minsz)
 		error(Esmolbuf);
 	}
 	newmsg = remove_message(&up->mbox);
-	print("cpu%d: %lud msgrecv: msg sz = %p\n",
-			up->mach->machno, up->pid, newmsg->size);
+	//print("cpu%d: %lud msgrecv: msg sz = %p\n",
+	//		up->mach->machno, up->pid, newmsg->size);
 	qunlock(&up->mbox.lock);
 	return newmsg;
 }
