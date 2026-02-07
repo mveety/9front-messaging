@@ -11,6 +11,7 @@ int	pflag;
 int	aflag;
 int	nflag;
 int	rflag;
+int mflag;
 
 void
 main(int argc, char *argv[])
@@ -31,6 +32,9 @@ main(int argc, char *argv[])
 		break;
 	case 'r':
 		rflag++;
+		break;
+	case 'm':
+		mflag++;
 		break;
 	} ARGEND;
 	Binit(&bout, 1, OWRITE);
@@ -62,9 +66,9 @@ main(int argc, char *argv[])
 void
 ps(char *s)
 {
-	ulong utime, stime, rtime, size;
-	int argc, basepri, fd, i, n, pri;
-	char args[256], *argv[16], buf[64], nbuf[13], pbuf[8], rbuf[20], rbuf1[20], status[4096];
+	ulong utime, stime, rtime, size, msgin, msgout, mboxsz;
+	int argc, basepri, fd, i, n, pri, mfd, margc;
+	char args[256], *argv[16], buf[64], nbuf[13], pbuf[8], rbuf[20], rbuf1[20], status[4096], mstatus[4096], *margv[5], mbuf[64];
 
 	sprint(buf, "%s/status", s);
 	fd = open(buf, OREAD);
@@ -79,6 +83,28 @@ ps(char *s)
 	if((argc = tokenize(status, argv, nelem(argv)-1)) < 12)
 		return;
 	argv[argc] = 0;
+
+	if(mflag){
+		sprint(buf, "%s/mailbox", s);
+		mfd = open(buf, OREAD);
+		if(mfd<0)
+			return;
+		n = read(mfd, mstatus, sizeof(mstatus)-1);
+		close(mfd);
+		if(n <= 0)
+			return;
+		mstatus[n] = '\0';
+		if((margc = tokenize(mstatus, margv, nelem(margv)-1)) < 4)
+			return;
+		margv[margc] = nil;
+		// msgctl = atoi(margv[0]);
+		msgin = strtoul(margv[1], 0, 0);
+		msgout = strtoul(margv[2], 0, 0);
+		mboxsz = strtoul(margv[3], 0, 0);
+		snprint(mbuf, sizeof(mbuf), "%s %7uld %7uld %7uld", margv[0],
+			msgin, msgout, mboxsz);
+	} else
+		mbuf[0] = 0;
 
 	/*
 	 * 0  text
@@ -125,7 +151,7 @@ ps(char *s)
 	}else
 		rbuf1[0] = 0;
 
-	Bprint(&bout, "%-10s %8s%s%s %4lud:%.2lud %3lud:%.2lud %s %7ludK %-8.8s ",
+	Bprint(&bout, "%-10s %8s%s%s %4lud:%.2lud %3lud:%.2lud %s %7ludK %s %-8.8s ",
 			argv[1],
 			s,
 			nbuf,
@@ -134,6 +160,7 @@ ps(char *s)
 			stime/60, stime%60,
 			pbuf,
 			size,
+			mbuf,
 			argv[2]);
 
 	if(aflag == 0){
