@@ -1,6 +1,7 @@
 #include <u.h>
 #include <libc.h>
 #include <bio.h>
+#include <msg.h>
 
 void	ps(char*);
 void	error(char*);
@@ -67,6 +68,7 @@ void
 ps(char *s)
 {
 	ulong utime, stime, rtime, size, msgin, msgout, mboxsz;
+	u32int msgctl;
 	int argc, basepri, fd, i, n, pri, mfd, margc;
 	char args[256], *argv[16], buf[64], nbuf[13], pbuf[8], rbuf[20], rbuf1[20], status[4096], mstatus[4096], *margv[5], mbuf[64];
 
@@ -97,11 +99,13 @@ ps(char *s)
 		if((margc = tokenize(mstatus, margv, nelem(margv)-1)) < 4)
 			return;
 		margv[margc] = nil;
-		// msgctl = atoi(margv[0]);
+		msgctl = (u32int)strtol(margv[0], 0, 16);
 		msgin = strtoul(margv[1], 0, 0);
 		msgout = strtoul(margv[2], 0, 0);
 		mboxsz = strtoul(margv[3], 0, 0);
-		snprint(mbuf, sizeof(mbuf), "%s %7uld %7uld %7uld", margv[0],
+		snprint(mbuf, sizeof(mbuf), "%c--%c %7uld %7uld %7uld",
+			(msgctl & MSGENABLE) ? 'e' : '-',
+			(msgctl & MSGALLUSERS) ? 'a' : '-',
 			msgin, msgout, mboxsz);
 	} else
 		mbuf[0] = 0;
