@@ -13,11 +13,24 @@ message contents.
 enum {
 	MsgMagic = 0xdeadbeef,
 	MailboxSize = 2,
+	MsgHeaderSize = 3*sizeof(u32int),
 };
+
+#pragma pack on
+typedef struct {
+	u32int magic;
+	u32int tag;
+	u32int pid;
+	char data[1];
+} MMdata;
+#pragma pack off
 
 typedef struct {
 	uintptr len; /* includes the tag */
-	char *data;
+	union {
+		void *data;
+		MMdata *payload;
+	};
 } MMessage;
 
 static void
@@ -39,16 +52,16 @@ marshal_message(Message *src)
 
 	if(!(dst = mallocz(sizeof(MMessage), 1)))
 		return nil;
-	if(!(dst->data = mallocz(src->len + (3*sizeof(s32int)), 1))){
+	if(!(dst->data = mallocz(src->len + MsgHeaderSize, 1))){
 		free(dst);
 		return nil;
 	}
-	dst->len = src->len + 3*sizeof(s32int);
+	dst->len = src->len + MsgHeaderSize;
 
-	*((u32int*)dst->data) = MsgMagic;
-	*((s32int*)(dst->data+4)) = src->tag;
-	*((s32int*)(dst->data+8)) = src->pid;
-	memmove(dst->data+12, src->data, src->len);
+	dst->payload->magic = MsgMagic;
+	dst->payload->tag = src->tag;
+	dst->payload->pid = src->pid;
+	memmove(&dst->payload->data[0], src->data, src->len);
 
 	return dst;
 }
@@ -58,33 +71,32 @@ static Message*
 unmarshal_message(MMessage *src)
 {
 	Message *dst;
-	u32int magic;
 
 	if(!src)
 		return nil;
 
 	/* try to verify format validity */
-	if(src->len <= 3*sizeof(u32int)){
+	if(src->len <= MsgHeaderSize){
 		werrstr("malformed message");
 		return nil;
 	}
-	magic = *((u32int*)src->data);
-	if(magic != MsgMagic){
+
+	if(src->payload->magic != MsgMagic){
 		werrstr("malformed message");
 		return nil;
 	}
 
 	if(!(dst = mallocz(sizeof(Message), 1)))
 		return nil;
-	if(!(dst->data = mallocz(src->len-(3*sizeof(s32int)), 1))){
+	if(!(dst->data = mallocz(src->len-MsgHeaderSize, 1))){
 		free(dst);
 		return nil;
 	}
 
-	dst->len = src->len - (3*sizeof(s32int));
-	dst->tag = *((s32int*)(src->data+4));
-	dst->pid = *((s32int*)(src->data+8));
-	memmove(dst->data, &src->data[12], dst->len);
+	dst->len = src->len - MsgHeaderSize;
+	dst->tag = src->payload->tag;
+	dst->pid = src->payload->pid;
+	memmove(dst->data, &src->payload->data[0], dst->len);
 
 	return dst;
 }
