@@ -11,7 +11,17 @@
 
 enum {
 	MsgMagic = 0xdeadbeef,
+	MsgHeaderSize = 3*sizeof(u32int),
 };
+
+#pragma pack on
+typedef struct {
+	u32int magic;
+	u32int tag;
+	u32int pid;
+	char data[1];
+} StdMessage;
+#pragma pack off
 
 Message*
 newmessage(void *data, uintptr sz)
@@ -36,24 +46,25 @@ Message*
 newstdmessage(int tag, uvlong pid, void *srcdata, uintptr sz)
 {
 	Message *new;
-	char *data;
+	StdMessage *stdmsg;
 
 	if(!(new = mallocz(sizeof(Message), 1)))
 		error(Enomem);
 
-	new->size = sz + (3*sizeof(s32int));
+	new->size = sz + MsgHeaderSize;
 	new->next = nil;
 	new->data = mallocz(new->size, 1);
 	if(!new->data){
 		free(new);
 		error(Enomem);
 	}
-	data = new->data;
 
-	*((u32int*)data) = MsgMagic;
-	*((s32int*)(data+4)) = tag;
-	*((s32int*)(data+8)) = (s32int)pid;
-	memmove(data+12, srcdata, sz);
+	stdmsg = (void*)new->data;
+
+	stdmsg->magic = MsgMagic;
+	stdmsg->tag = tag;
+	stdmsg->pid = (s32int)pid;
+	memmove(&stdmsg->data[0], srcdata, sz);
 
 	return new;
 }
