@@ -174,7 +174,7 @@ main(int argc, char *argv[])
 			break;
 		case Detect:
 		case Raw:
-			sys_msgctl(Mctlwrite, MSGENABLE|ctlextra); // accept messages
+			sys_msgctl(Mctlwrite, MSGENABLE|MSGMONITOR|MSGPROCS|ctlextra); // accept messages
 			for(int i = 0; i < ntimes; i++){
 				msglen = sys_msgwait();
 				if(msglen == 0 || (intptr)msglen == -1){
