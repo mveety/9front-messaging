@@ -107,8 +107,12 @@ msgenable(void)
 	u32int ctl;
 
 	ctl = sys_msgctl(Mctlread, 0);
-	if(!(ctl & MSGENABLE))
-		ctl |= MSGENABLE;
+	if(ctl == 0)
+		ctl = MSGENABLE|MSGMONITOR|MSGPROCS;
+	else {
+		if(!(ctl & MSGENABLE))
+			ctl |= MSGENABLE;
+	}
 	if(sys_msgctl(Mctlwrite, ctl) != ctl)
 		return -1;
 	return 0;

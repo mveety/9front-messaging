@@ -103,8 +103,10 @@ ps(char *s)
 		msgin = strtoul(margv[1], 0, 0);
 		msgout = strtoul(margv[2], 0, 0);
 		mboxsz = strtoul(margv[3], 0, 0);
-		snprint(mbuf, sizeof(mbuf), "%c--%c %7uld %7uld %7uld",
+		snprint(mbuf, sizeof(mbuf), "%c%C%C%c %7uld %7uld %7uld",
 			(msgctl & MSGENABLE) ? 'e' : '-',
+			(msgctl & MSGMONITOR) ? 'm' : '-',
+			(msgctl & MSGPROCS) ? 'p' : '-',
 			(msgctl & MSGALLUSERS) ? 'a' : '-',
 			msgin, msgout, mboxsz);
 	} else
