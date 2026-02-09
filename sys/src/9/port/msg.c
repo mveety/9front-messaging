@@ -87,7 +87,7 @@ flushmailbox(Mailbox *mbox)
 {
 	Message *mb;
 
-	qlock(&mbox->lock);
+	lock(&mbox->lock);
 	for(mb = mbox->head; mb != nil; mb = freemessage(mb))
 		;;
 	mbox->head = nil;
@@ -95,7 +95,7 @@ flushmailbox(Mailbox *mbox)
 	mbox->ctl = 0;
 	mbox->msgin = 0;
 	mbox->msgout = 0;
-	qunlock(&mbox->lock);
+	unlock(&mbox->lock);
 }
 
 static int
@@ -160,7 +160,7 @@ psendmsg(Proc *proc, Message *msg)
 		return -1;
 	}
 
-	qlock(&proc->mbox.lock);
+	lock(&proc->mbox.lock);
 
 	// are messages enabled?
 	if(!(proc->mbox.ctl & MSGENABLE)){
@@ -170,7 +170,7 @@ psendmsg(Proc *proc, Message *msg)
 		// problem?
 		//print("cpu%d: msgsend %lud -> %lud: dropped\n",
 		//		up->mach->machno, up->pid, proc->pid);
-		qunlock(&proc->mbox.lock);
+		unlock(&proc->mbox.lock);
 		error(Egoaway);
 	}
 
@@ -179,7 +179,7 @@ psendmsg(Proc *proc, Message *msg)
 		if(strcmp(up->user, proc->user) != 0) {
 		//	print("cpu%d: msgsend %lud -> %lud: dropped\n",
 		//		up->mach->machno, up->pid, proc->pid);
-			qunlock(&proc->mbox.lock);
+			unlock(&proc->mbox.lock);
 			error(Eperm);
 		}
 	}
@@ -191,7 +191,7 @@ psendmsg(Proc *proc, Message *msg)
 	up->mbox.msgout++;
 	proc->mbox.msgin++;
 
-	qunlock(&proc->mbox.lock);
+	unlock(&proc->mbox.lock);
 	if(proc->state == Msgsleep)
 		ready(proc);
 
@@ -204,24 +204,24 @@ pwaitmsg(void)
 	int waited = 0;
 	uintptr sz;
 
-	qlock(&up->mbox.lock);
+	lock(&up->mbox.lock);
 	if(!(up->mbox.ctl & MSGENABLE)){
-		qunlock(&up->mbox.lock);
+		unlock(&up->mbox.lock);
 		return 0;
 	}
 	if(up->mbox.head == nil) {
 		up->state = Msgsleep;
 		//print("cpu%d: %lud msgwait\n", up->mach->machno, up->pid);
-		qunlock(&up->mbox.lock);
+		unlock(&up->mbox.lock);
 		waited = 1;
 		sched();
 	}
 	if(waited){
-		qlock(&up->mbox.lock);
+		lock(&up->mbox.lock);
 		if(up->mbox.head == nil){
 			// you end up here if you get a note(?) or so
 			// and no messages have arrived
-			qunlock(&up->mbox.lock);
+			unlock(&up->mbox.lock);
 			//print("cpu%d: %lud msgwait interrupted\n",
 			//		up->mach->machno, up->pid);
 			error(Eintr);
@@ -230,7 +230,7 @@ pwaitmsg(void)
 	sz = up->mbox.head->size;
 	//print("cpu%d: %lud msgwait: new msg sz = %p\n",
 	//		up->mach->machno, up->pid, sz);
-	qunlock(&up->mbox.lock);
+	unlock(&up->mbox.lock);
 	return sz;
 }
 
@@ -239,25 +239,25 @@ precvmsg(uintptr minsz)
 {
 	Message *newmsg;
 
-	qlock(&up->mbox.lock);
+	lock(&up->mbox.lock);
 	if(!(up->mbox.ctl & MSGENABLE)){
-		qunlock(&up->mbox.lock);
+		unlock(&up->mbox.lock);
 		error(Egoaway);
 	}
 	if(up->mbox.head == nil){
-		qunlock(&up->mbox.lock);
+		unlock(&up->mbox.lock);
 		error(Enomsgs);
 	}
 
 	// for in kernel use you don't need to check the size of the
 	// message before fetching it, so accept 0 for this case.
 	if(minsz > 0 && up->mbox.head->size > minsz){
-		qunlock(&up->mbox.lock);
+		unlock(&up->mbox.lock);
 		error(Esmolbuf);
 	}
 	newmsg = remove_message(&up->mbox);
 	//print("cpu%d: %lud msgrecv: msg sz = %p\n",
 	//		up->mach->machno, up->pid, newmsg->size);
-	qunlock(&up->mbox.lock);
+	unlock(&up->mbox.lock);
 	return newmsg;
 }

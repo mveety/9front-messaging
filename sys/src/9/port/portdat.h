@@ -711,7 +711,7 @@ enum {
 /* erlang-like message passing in-kernel mailbox */
 struct Mailbox
 {
-	QLock lock;
+	Lock lock;
 	u32int ctl;
 	Message *head;
 	Message *tail;
