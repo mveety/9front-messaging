@@ -1,12 +1,12 @@
-# Plan 9 Message Passing Kernel + libc
+# Plan 9 Message Passing Kernel + libc + userland
 
 This repo contains a kernel which add four message passing system calls. Some examples are [here](https://github.com/mveety/p9messaging). The kernel portions are more or less stable (I am currently them on my file server and terminals), but the userspace portions are somewhat still up in the air. Use at your own risk.
 
 ## System Calls
-* `int msg_send(ulong pid, void *message, uintptr message_size)`
+* `int sys_msgsend(ulong pid, void *message, uintptr message_size)`
 	Asynchonously sends a message `message` to process `pid`. Returns 0 if successful and -1 otherwise. Sets errstr.
 
-* `uintptr msg_wait(void)`
+* `uintptr sys_msgwait(void)`
 
 	Blocks until a message is ready to be received. Returns the size of the message to be received, 0 if there is a recoverable error, or (uintptr)-1 if there is a serious error. Sets errstr.
 
