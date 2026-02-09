@@ -168,17 +168,14 @@ psendmsg(Proc *proc, Message *msg)
 		// isn't accepting messages be an error?
 		// should it even signal to the sender that there's a
 		// problem?
-		//print("cpu%d: msgsend %lud -> %lud: dropped\n",
-		//		up->mach->machno, up->pid, proc->pid);
 		unlock(&proc->mbox.lock);
 		error(Egoaway);
 	}
 
 	// are user permissions good?
 	if(!(proc->mbox.ctl & MSGALLUSERS)){
-		if(strcmp(up->user, proc->user) != 0) {
-		//	print("cpu%d: msgsend %lud -> %lud: dropped\n",
-		//		up->mach->machno, up->pid, proc->pid);
+		// if you're hostowner you can send messages to anyone
+		if(!iseve() && strcmp(up->user, proc->user) != 0) {
 			unlock(&proc->mbox.lock);
 			error(Eperm);
 		}
@@ -186,8 +183,6 @@ psendmsg(Proc *proc, Message *msg)
 
 	add_message(&proc->mbox, msg);
 
-	//print("cpu%d: msgsend %lud -> %lud\n",
-	//		up->mach->machno, up->pid, proc->pid);
 	up->mbox.msgout++;
 	proc->mbox.msgin++;
 
@@ -207,11 +202,14 @@ pwaitmsg(void)
 	lock(&up->mbox.lock);
 	if(!(up->mbox.ctl & MSGENABLE)){
 		unlock(&up->mbox.lock);
-		return 0;
+		// there's arguments to throw errors if you wait when
+		// messages are disabled. idk if I agree with that.
+		// this would match with precvmsg, though.
+		error(Egoaway);
+		// return 0;
 	}
 	if(up->mbox.head == nil) {
 		up->state = Msgsleep;
-		//print("cpu%d: %lud msgwait\n", up->mach->machno, up->pid);
 		unlock(&up->mbox.lock);
 		waited = 1;
 		sched();
@@ -219,17 +217,13 @@ pwaitmsg(void)
 	if(waited){
 		lock(&up->mbox.lock);
 		if(up->mbox.head == nil){
-			// you end up here if you get a note(?) or so
+			// you end up here if you get interrupted
 			// and no messages have arrived
 			unlock(&up->mbox.lock);
-			//print("cpu%d: %lud msgwait interrupted\n",
-			//		up->mach->machno, up->pid);
 			error(Eintr);
 		}
 	}
 	sz = up->mbox.head->size;
-	//print("cpu%d: %lud msgwait: new msg sz = %p\n",
-	//		up->mach->machno, up->pid, sz);
 	unlock(&up->mbox.lock);
 	return sz;
 }
@@ -256,8 +250,6 @@ precvmsg(uintptr minsz)
 		error(Esmolbuf);
 	}
 	newmsg = remove_message(&up->mbox);
-	//print("cpu%d: %lud msgrecv: msg sz = %p\n",
-	//		up->mach->machno, up->pid, newmsg->size);
 	unlock(&up->mbox.lock);
 	return newmsg;
 }
