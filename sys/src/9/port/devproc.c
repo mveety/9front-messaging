@@ -958,13 +958,13 @@ procread(Chan *c, void *va, long n, vlong off)
 		return readnum(offset, va, n, p->parentpid, NUMSIZE);
 
 	case Qmailbox:
-		qlock(&p->mbox.lock);
+		lock(&p->mbox.lock);
 		memset(&statbuf[0], 0, sizeof(statbuf));
 		// mbox.ctl mbox.msgin mbox.msgout mailboxsz(&mbox)
 		j = snprint(&statbuf[0], sizeof(statbuf), "%x %llud %llud %llud",
 					p->mbox.ctl, (uvlong)p->mbox.msgin,
 					(uvlong)p->mbox.msgout, (uvlong)mailboxsz(&p->mbox));
-		qunlock(&p->mbox.lock);
+		unlock(&p->mbox.lock);
 		if(offset >= j)
 			return 0;
 		if(offset+n > j)
