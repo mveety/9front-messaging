@@ -1492,7 +1492,7 @@ sys_msgrecv(va_list list)
 	if(dstbuf == nil)
 		error(Ebadarg);
 	if(dstbufsz == 0)
-		error(Ezerobuf);
+		error(Esmolbuf);
 	validaddr((uintptr)dstbuf, dstbufsz, 1);
 
 	fetchedmsg = precvmsg(dstbufsz);
@@ -1504,7 +1504,7 @@ sys_msgrecv(va_list list)
 	return 0;
 }
 
-// msgctl(int, u32int) -> u32int
+// sys_msgctl(int, u32int) -> u32int
 uintptr
 sys_msgctl(va_list list)
 {
