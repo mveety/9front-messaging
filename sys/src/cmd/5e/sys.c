@@ -665,6 +665,64 @@ sysfauth(void)
 		free(anamet);
 }
 
+static void
+sysmsgsend(void)
+{
+	ulong targetpid;
+	u32int msgdata, sz;
+	void *msgdatat;
+	int copied;
+
+	targetpid = arg(0);
+	msgdata = arg(1);
+	sz = arg(2);
+	msgdatat = copyifnec(msgdata, sz, &copied);
+	if(systrace)
+		fprint(2, "sys_msgsend(%ld, %#ux, %ud)\n", targetpid, msgdata, sz);
+	P->R[0] = noteerr(sys_msgsend(targetpid, msgdatat, sz), 0);
+	if(copied)
+		free(msgdatat);
+}
+
+static void
+sysmsgwait(void)
+{
+	P->R[0] = noteerr((u32int)sys_msgwait(), 0);
+}
+
+static void
+sysmsgrecv(void)
+{
+	u32int dstbuf, dstbufsz;
+	void *dstbuft;
+	int buffered;
+
+	dstbuf = arg(0);
+	dstbufsz = arg(1);
+
+	if(systrace)
+		fprint(2, "sys_msgrecv(%#ux, %ud)\n", dstbuf, dstbufsz);
+	dstbuft = bufifnec(dstbuf, dstbufsz, &buffered);
+	P->R[0] = noteerr(sys_msgrecv(dstbuft, dstbufsz), 0);
+	if(buffered)
+		copyback(dstbuf, dstbufsz, dstbuft);
+}
+
+static void
+sysmsgctl(void)
+{
+	int op;
+	u32int flags;
+
+	op = arg(0);
+	flags = arg(1);
+
+	if(systrace)
+		fprint(2, "sys_msgctl(%d, %x)\n", op, flags);
+
+	P->R[0] = noteerr(sys_msgctl(op, flags), 0);
+}
+
 void
 syscall(void)
 {
@@ -702,6 +760,10 @@ syscall(void)
 		[SEMACQUIRE] syssemacquire,
 		[SEMRELEASE] syssemrelease,
 		[FAUTH] sysfauth,
+		[SYS_MSGSEND] sysmsgsend,
+		[SYS_MSGWAIT] sysmsgwait,
+		[SYS_MSGRECV] sysmsgrecv,
+		[SYS_MSGCTL] sysmsgctl,
 	};
 	
 	n = P->R[0];
