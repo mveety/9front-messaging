@@ -283,7 +283,6 @@ Proc*		proctab(int);
 extern void	(*proctrace)(Proc*, int, vlong); 
 void		procwired(Proc*, int);
 int			psendmsg(Proc*, Message*);
-Pte*		ptealloc(void);
 int		pullblock(Block**, int);
 Block*		pullupblock(Block*, int);
 Block*		pullupqueue(Queue*, int);
