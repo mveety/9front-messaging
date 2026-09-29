@@ -136,6 +136,7 @@ void		freeb(Block*);
 void		freeblist(Block*);
 int		freebroken(void);
 Message*	freemessage(Message*);
+int			_freemonitor(ObjMonitor*);
 int			freemonitor(ObjMonitor*);
 void		freenote(Note*);
 void		freenotes(Proc*);

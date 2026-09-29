@@ -79,7 +79,7 @@ removemonitorfromproc(Proc *p, ObjMonitor *m, int owner)
 	return found;
 }
 
-static int
+int
 _freemonitor(ObjMonitor *m)
 {
 	if(m == nil)
