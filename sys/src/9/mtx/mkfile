@@ -20,6 +20,7 @@ PORT=\
 	iomap.$O\
 	log.$O\
 	msg.$O\
+	monitor.$O\
 	mul64fract.$O\
 	rebootcmd.$O\
 	page.$O\

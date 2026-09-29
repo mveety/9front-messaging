@@ -25,6 +25,7 @@ PORT=\
 	iomap.$O\
 	memmap.$O\
 	msg.$O \
+	monitor.$O \
 	page.$O\
 	parse.$O\
 	pgrp.$O\

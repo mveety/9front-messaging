@@ -21,6 +21,7 @@ PORT=\
 	fault.$O\
 	log.$O\
 	msg.$O\
+	monitor.$O\
 	rebootcmd.$O\
 	page.$O\
 	parse.$O\
