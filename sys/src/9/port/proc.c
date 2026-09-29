@@ -399,6 +399,7 @@ queueproc(Schedq *rq, Proc *p)
 	case Broken:
 	case Stopped:
 	case Rendezvous:
+	case Msgsleep:
 		if(p != up)
 			break;
 		/* wet floor */

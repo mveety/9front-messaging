@@ -16,8 +16,9 @@ typedef struct Image	Image;
 typedef struct Lock	Lock;
 typedef struct Log	Log;
 typedef struct Logflag	Logflag;
-typedef struct Message Message;
 typedef struct Mailbox Mailbox;
+typedef struct Message Message;
+typedef struct ObjMonitor ObjMonitor;
 typedef struct Mntcache Mntcache;
 typedef struct Mount	Mount;
 typedef struct Mntrah	Mntrah;
@@ -676,18 +677,45 @@ struct Schedq
 	int	n;
 };
 
-struct Message {
-	uintptr size;
-	void *data;
-	Message *next;
-};
-
 enum {
 	MSGENABLE = (1<<0), /* allow process to receive messages */
 	MSGMONITOR = (1<<1), /* accept monitor messages */
 	MSGPROCS = (1<<2), /* accept process messages */
 
 	MSGALLUSERS = (1<<3), /* allow messages from other users */
+
+// tags
+	TagMonitor = -128,
+
+// monitor types
+	MT_Process = 1<<0,	// get events on processes
+	MT_File = 1<<1,		// get events on file descriptors
+
+// monitor modifiers
+	MM_Track = 1<<3,	// (for processes) implicitly monitor target children until exec
+	MM_Stalk = 1<<4,	// (for processes) implicitly monitor all target children forever
+
+// process events
+	ME_Death = 1<<6,
+	ME_Rfork = 1<<7,
+	ME_Exec = 1<<8,
+	ME_Interrupt = 1<<9,
+	ME_Hangup = 1<<10,
+	ME_Alarm = 1<<11,
+	ME_Abort = 1<<12,
+
+// file events
+	ME_Read = 1<<16, /* ready to be read */
+	ME_Write = 1<<17, /* ready to be written */
+	ME_Remove = 1<<18, /* file got unlinked */
+	ME_Close = 1<<19, /* you or someone else closed the file */
+	ME_Open = 1<<20, /* someone else opened the file */
+};
+
+struct Message {
+	uintptr size;
+	void *data;
+	Message *next;
 };
 
 /* erlang-like message passing in-kernel mailbox */
@@ -699,6 +727,13 @@ struct Mailbox
 	Message *tail;
 	uintptr msgin;
 	uintptr msgout;
+};
+
+struct ObjMonitor {
+	s64int id;
+	Proc *srcproc;
+	u32int events;
+	Proc *pobject;
 };
 
 struct Proc
@@ -836,6 +871,13 @@ struct Proc
 	int	nwatchpt;
 
 	Mailbox mbox; /* for sys_msgsend and friends */
+
+	Lock monitorlock;
+	int monitored; /* non-zero if monitored */
+	uintptr own_monitors_len; 
+	ObjMonitor **own_monitors;
+	uintptr monitors_len;
+	ObjMonitor **monitors;
 };
 
 enum
