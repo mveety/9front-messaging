@@ -746,11 +746,18 @@ newproc(void)
 	p->cpu = 0;
 	p->lastupdate = MACHP(0)->ticks*Scaling;
 	p->edf = nil;
+
 	p->mbox.ctl = 0;
 	p->mbox.head = nil;
 	p->mbox.tail = nil;
 	p->mbox.msgin = 0;
 	p->mbox.msgout = 0;
+
+	p->monitored = 0;
+	p->own_monitors_len = 0;
+	p->own_monitors = nil;
+	p->monitors_len = 0;
+	p->monitors = nil;
 
 	return p;
 }
@@ -1022,6 +1029,11 @@ procinterrupt(Proc *p)
 	unlock(&p->rlock);
 	splx(s);
 
+	if(p->monitored){
+		for(uintptr moni = 0; moni < p->monitors_len; moni++)
+			triggermonitor(p->monitors[moni], (MT_Process|ME_Interrupt));
+	}
+
 	switch(p->state){
 	case Queueing:
 		/* Try and pull out of a eqlock */
@@ -1278,6 +1290,7 @@ pexit(char *exitstr, int freemem)
 	Chan *dot;
 	void (*pt)(Proc*, int, vlong);
 	int i;
+	uintptr moni;
 
 	up->alarm = 0;
 	timerdel(up);
@@ -1389,6 +1402,31 @@ pexit(char *exitstr, int freemem)
 	up->noteureg = nil;
 	up->dbgreg = nil;
 	flushmailbox(&up->mbox);
+
+	lock(&up->monitorlock);
+	/* trigger monitors */
+	if(up->monitored){
+		for(moni = 0; moni < up->monitors_len; moni++)
+			triggermonitor(up->monitors[moni], MT_Process|ME_Death);
+	}
+
+	/* clean up monitors */
+	for(moni = 0; moni < up->own_monitors_len; moni++)
+		_freemonitor(up->own_monitors[moni]);
+	for(moni = 0; moni < up->monitors_len; moni++)
+		_freemonitor(up->monitors[moni]);
+	if(up->own_monitors){
+		free(up->own_monitors);
+		up->own_monitors = nil;
+	}
+	if(up->monitors){
+		free(up->monitors);
+		up->monitors = nil;
+	}
+	up->own_monitors_len = 0;
+	up->monitors_len = 0;
+	up->monitored = 0;
+	unlock(&up->monitorlock);
 
 	/* release debuggers */
 	if(up->pdbg != nil) {
