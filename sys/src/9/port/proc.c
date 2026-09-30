@@ -1029,11 +1029,6 @@ procinterrupt(Proc *p)
 	unlock(&p->rlock);
 	splx(s);
 
-	if(p->monitored){
-		for(uintptr moni = 0; moni < p->monitors_len; moni++)
-			triggermonitor(p->monitors[moni], (MT_Process|ME_Interrupt));
-	}
-
 	switch(p->state){
 	case Queueing:
 		/* Try and pull out of a eqlock */
@@ -1291,6 +1286,7 @@ pexit(char *exitstr, int freemem)
 	void (*pt)(Proc*, int, vlong);
 	int i;
 	uintptr moni;
+	u32int 	monitorflag = MT_Process|ME_Death;
 
 	up->alarm = 0;
 	timerdel(up);
@@ -1395,6 +1391,21 @@ pexit(char *exitstr, int freemem)
 		free(wq);
 	}
 
+	if(up->notified){
+		uintptr notesz;
+		if(up->lastnote->flag == NDebug)
+			monitorflag |= ME_Abort;
+		else {
+			notesz = strlen(up->lastnote->msg);
+			if(notesz >= 5 && strncmp(up->lastnote->msg, "alarm", 5) == 0)
+				monitorflag |= ME_Alarm;
+			else if(notesz >= 6 && strncmp(up->lastnote->msg, "hangup", 6) == 0)
+				monitorflag |= ME_Hangup;
+			else if(notesz >= 9 && strncmp(up->lastnote->msg, "interrupt", 9) == 0)
+				monitorflag |= ME_Interrupt;
+		}
+	}
+
 	freenotes(up);
 	freenote(up->lastnote);
 	up->lastnote = nil;
@@ -1407,7 +1418,7 @@ pexit(char *exitstr, int freemem)
 	/* trigger monitors */
 	if(up->monitored){
 		for(moni = 0; moni < up->monitors_len; moni++)
-			triggermonitor(up->monitors[moni], MT_Process|ME_Death);
+			triggermonitor(up->monitors[moni], monitorflag);
 	}
 
 	/* clean up monitors */

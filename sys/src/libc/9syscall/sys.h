@@ -54,3 +54,4 @@
 #define SYS_MSGWAIT	55
 #define SYS_MSGRECV	56
 #define SYS_MSGCTL	57
+#define SYS_MONITOR 58

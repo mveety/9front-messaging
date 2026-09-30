@@ -41,6 +41,7 @@ sam -d $file >[2] /dev/null <<'!'
 ,x/Sysr1/c/Running
 ,x/Rendezvous/c/Rendez
 ,x/Sys_msg/c/Msg
+,x/Sys_monitor/c/Monitor
 ,x v/\[......+\]/ s/\]/]	
 ,p
 !

@@ -730,7 +730,7 @@ struct Mailbox
 };
 
 struct ObjMonitor {
-	s64int id;
+	s32int id;
 	Proc *srcproc;
 	u32int events;
 	Proc *pobject;
