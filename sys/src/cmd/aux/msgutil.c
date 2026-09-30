@@ -126,6 +126,7 @@ main(int argc, char *argv[])
 			memmove(tmp, msg->data, msg->len);
 			fprint(2, "got message (tag %d, size %p) \"%s\"\n",
 				msg->tag, msg->len, msg->data);
+			freemessage(msg);
 		}
 		exits(nil);
 	}

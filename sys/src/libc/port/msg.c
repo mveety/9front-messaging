@@ -216,7 +216,7 @@ _msgrecv(void)
 	if((intptr)(len) == -1)
 		return nil; // errstr should == interrupted
 
-	msg = message(TagDefault, nil, len);
+	msg = message(TagDefault, nil, len-sizeof(s32int));
 	if(msg == nil)
 		return nil;
 
