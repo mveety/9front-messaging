@@ -805,6 +805,7 @@ extern	int sys_msgsend(ulong, void*, uintptr);
 extern	uintptr sys_msgwait(void);
 extern	uintptr sys_msgrecv(void*, uintptr);
 extern	u32int sys_msgctl(int, u32int);
+extern	int	sys_monitor(int, u32int);
 
 extern	Dir*	dirstat(char*);
 extern	Dir*	dirfstat(int);

@@ -447,3 +447,10 @@ msgrecvfilter(Mailbox *mbox, int *tags, uvlong ntags)
 	qunlock(&mbox->lock);
 	return nil;
 }
+
+int
+monitor(int object, u32int events)
+{
+	msgenable();
+	return sys_monitor(object, events);
+}
