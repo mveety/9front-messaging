@@ -1,5 +1,6 @@
 /* userspace api */
 typedef struct Mailbox Mailbox;
+typedef struct MessageData MessageData;
 typedef struct Message Message;
 typedef struct MonitorMsg MonitorMsg;
 
@@ -16,6 +17,7 @@ enum {
 	MSGALLUSERS = (1<<3), /* allow messages from other users */
 
 // standard tags
+	TagDefault = 0,
 	TagMonitor = -128,
 
 // monitor types
@@ -43,11 +45,19 @@ enum {
 	ME_Open = 1<<20, /* someone else opened the file */
 };
 
+#pragma pack on
+struct MessageData {
+	s32int tag;
+	char data[1];
+};
+#pragma pack off
+
 struct Message {
 	s32int tag;
 	uintptr len;
-	s32int pid;
 	void *data;
+	MessageData *rawmsg;
+	uintptr rawlen;
 	Message *next;
 };
 
@@ -75,7 +85,7 @@ void		flushmailbox(Mailbox*);
 void		freemailbox(Mailbox*);
 uvlong		mailboxsz(Mailbox*);
 Message*	message(int, void*, uintptr);
-Message*	freemsg(Message*);
+Message*	freemessage(Message*);
 Message*	selectmsg(Mailbox*, Message*);
 int			msgsend(int, Message*);
 Message*	msgrecv(Mailbox*);

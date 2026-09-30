@@ -18,6 +18,7 @@ typedef struct Log	Log;
 typedef struct Logflag	Logflag;
 typedef struct Mailbox Mailbox;
 typedef struct Message Message;
+typedef struct MessageData MessageData;
 typedef struct ObjMonitor ObjMonitor;
 typedef struct Mntcache Mntcache;
 typedef struct Mount	Mount;
@@ -685,6 +686,7 @@ enum {
 	MSGALLUSERS = (1<<3), /* allow messages from other users */
 
 // tags
+	TagDefault = 0,
 	TagMonitor = -128,
 
 // monitor types
@@ -712,9 +714,18 @@ enum {
 	ME_Open = 1<<20, /* someone else opened the file */
 };
 
+#pragma pack on
+struct MessageData {
+	s32int tag;
+	char data[1];
+};
+#pragma pack off
+
 struct Message {
 	uintptr size;
-	void *data;
+	s32int tag;
+	MessageData *rawmsg;
+	void *data; // actually rawmsg->data[0]
 	Message *next;
 };
 

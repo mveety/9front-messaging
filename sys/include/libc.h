@@ -801,7 +801,7 @@ extern	long	writev(int, IOchunk*, int);
 extern	int	wstat(char*, uchar*, int);
 extern	void*	rendezvous(void*, void*);
 
-extern	int sys_msgsend(ulong, void*, uintptr);
+extern	int sys_msgsend(ulong, s32int, void*, uintptr);
 extern	uintptr sys_msgwait(void);
 extern	uintptr sys_msgrecv(void*, uintptr);
 extern	u32int sys_msgctl(int, u32int);

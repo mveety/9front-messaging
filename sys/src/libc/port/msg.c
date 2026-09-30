@@ -2,104 +2,9 @@
 #include <libc.h>
 #include <msg.h>
 
-/*
-wire format
-basically the first four bytes are the magic number,
-(u32int), the next four are the tag (s32int), the
-sender's pid (s32int), and the rest is the actual
-message contents.
-*/
-
 enum {
-	MsgMagic = 0xdeadbeef,
 	MailboxSize = 2,
-	MsgHeaderSize = 3*sizeof(u32int),
 };
-
-#pragma pack on
-typedef struct {
-	u32int magic;
-	u32int tag;
-	u32int pid;
-	char data[1];
-} MMdata;
-#pragma pack off
-
-typedef struct {
-	uintptr len; /* includes the tag */
-	union {
-		void *data;
-		MMdata *payload;
-	};
-} MMessage;
-
-static void
-free_mmessage(MMessage *mm)
-{
-	free(mm->data);
-	free(mm);
-}
-
-/* does not free Message, allocates MMessage */
-static MMessage*
-marshal_message(Message *src)
-{
-	MMessage *dst;
-
-	assert(src);
-	assert(src->len > 0);
-	assert(src->data);
-
-	if(!(dst = mallocz(sizeof(MMessage), 1)))
-		return nil;
-	if(!(dst->data = mallocz(src->len + MsgHeaderSize, 1))){
-		free(dst);
-		return nil;
-	}
-	dst->len = src->len + MsgHeaderSize;
-
-	dst->payload->magic = MsgMagic;
-	dst->payload->tag = src->tag;
-	dst->payload->pid = src->pid;
-	memmove(&dst->payload->data[0], src->data, src->len);
-
-	return dst;
-}
-
-/* does not free MMessage, allocates Message */
-static Message*
-unmarshal_message(MMessage *src)
-{
-	Message *dst;
-
-	if(!src)
-		return nil;
-
-	/* try to verify format validity */
-	if(src->len <= MsgHeaderSize){
-		werrstr("malformed message");
-		return nil;
-	}
-
-	if(src->payload->magic != MsgMagic){
-		werrstr("malformed message");
-		return nil;
-	}
-
-	if(!(dst = mallocz(sizeof(Message), 1)))
-		return nil;
-	if(!(dst->data = mallocz(src->len-MsgHeaderSize, 1))){
-		free(dst);
-		return nil;
-	}
-
-	dst->len = src->len - MsgHeaderSize;
-	dst->tag = src->payload->tag;
-	dst->pid = src->payload->pid;
-	memmove(dst->data, &src->payload->data[0], dst->len);
-
-	return dst;
-}
 
 int
 msgenable(void)
@@ -137,48 +42,34 @@ message(int tag, void *data, uintptr len)
 {
 	Message *msg;
 
-	if(data != nil && len == 0){
-		werrstr("invalid message");
-		return nil;
-	}
-	if(data == nil && len != 0){
+	if(len == 0){
 		werrstr("invalid message");
 		return nil;
 	}
 
 	if(!(msg = mallocz(sizeof(Message), 1)))
 		return nil;
+	if(!(msg->rawmsg = mallocz(sizeof(s32int)+len, 1)))
+		return nil;
 
 	msg->tag = tag;
-	if(data == nil && len == 0) {
-		/* zero-length messages need to have some payload */
-		if(!(msg->data = mallocz(1, 1))){
-			free(msg);
-			return nil;
-		}
-		*((u8int*)msg->data) = 0;
-		msg->len = 1;
-		return msg;
-	}
-
-	if(!(msg->data = mallocz(len, 1))){
-		free(msg);
-		return nil;
-	}
-	msg->pid = getpid();
+	msg->rawmsg->tag = tag;
 	msg->len = len;
-	memmove(msg->data, data, len);
+	msg->rawlen = len+sizeof(s32int);
+	msg->data = &msg->rawmsg->data[0];
+	if(data)
+		memmove(msg->data, data, len);
 
 	return msg;
 }
 
 Message*
-freemsg(Message *msg)
+freemessage(Message *msg)
 {
 	Message *next;
 
 	next = msg->next;
-	free(msg->data);
+	free(msg->rawmsg);
 	free(msg);
 	return next;
 }
@@ -225,7 +116,7 @@ _flushmailbox(Mailbox *mbox)
 
 	for(i = 0; i < mbox->len; i++)
 		if(mbox->msgs[i] != nil){
-			freemsg(mbox->msgs[i]);
+			freemessage(mbox->msgs[i]);
 			mbox->msgs[i] = nil;
 		}
 	mbox->i = 0;
@@ -305,40 +196,37 @@ selectmsg(Mailbox *mbox, Message *msg)
 int
 msgsend(int pid, Message *msg)
 {
-	MMessage *mmsg;
 	int retval;
 
-	if(!(mmsg = marshal_message(msg)))
-		return -1;
-
-	retval = sys_msgsend(pid, mmsg->data, mmsg->len);
-	free_mmessage(mmsg);
+	retval = sys_msgsend(pid, msg->tag, msg->data, msg->len);
 	return retval;
 }
 
 static Message*
 _msgrecv(void)
 {
-	MMessage mmsg;
+	uintptr len;
 	Message *msg;
 
-	mmsg.len = sys_msgwait();
-	if(mmsg.len == 0){
+	len = sys_msgwait();
+	if(len == 0){
 		werrstr("zero-length message");
 		return nil;
 	}
-	if((intptr)(mmsg.len) == -1)
-		return nil; // errstr should = interrupted
-	if(!(mmsg.data = mallocz(mmsg.len, 1)))
+	if((intptr)(len) == -1)
+		return nil; // errstr should == interrupted
+
+	msg = message(TagDefault, nil, len);
+	if(msg == nil)
 		return nil;
 
-	if(sys_msgrecv(mmsg.data, mmsg.len) != 0){
-		free(mmsg.data);
+	if(sys_msgrecv(msg->rawmsg, msg->rawlen) != 0){
+		freemessage(msg);
 		return nil;
 	}
-	
-	msg = unmarshal_message(&mmsg);
-	free(mmsg.data);
+
+	msg->tag = msg->rawmsg->tag;
+
 	return msg;
 }
 
@@ -401,7 +289,7 @@ _msgrecvfilter(int *tags, uvlong ntags)
 		for(i = 0; i < ntags; i++)
 			if(msg->tag == tags[i])
 				return msg;
-		freemsg(msg);
+		freemessage(msg);
 	}
 }
 
