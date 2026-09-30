@@ -332,6 +332,12 @@ syscallfmt(ulong syscallno, uintptr pc, va_list list)
 			fmtprint(&fmt, "read");
 		fmtprint(&fmt, "%x", i[1]);
 		break;
+	case SYS_MONITOR:
+		i[0] = va_arg(list, int);
+		i[1] = va_arg(list, u32int);
+		fmtprint(&fmt, "%d", i[0]);
+		fmtprint(&fmt, "%x", i[1]);
+		break;
 	}
 
 	a = fmtstrflush(&fmt);

@@ -243,6 +243,18 @@ sysrfork(va_list list)
 		incref(up->egrp);
 	}
 
+	/* Monitors */
+	if(up->monitored){
+		for(uintptr moni = 0; i < up->monitors_len; i++)
+			if(up->monitors[moni] != nil){
+				/* trigger any rfork events */
+				triggermonitor(up->monitors[moni], (MT_Process|ME_Rfork));
+				/* copy any MM_Track and/or MM_Stalk monitors */
+				if(up->monitors[moni]->events & (MM_Track|MM_Stalk))
+					dupprocmonitor(up->monitors[moni], p);
+			}
+	}
+
 	procfork(p);
 
 	poperror();	/* abortion */
@@ -675,6 +687,18 @@ sysexec(va_list list)
 	procsetup(up);
 	qunlock(&up->debug);
 	flushmailbox(&up->mbox);
+
+	if(up->monitored){
+		for(uintptr moni = 0; moni < up->monitors_len; moni++)
+			if(up->monitors[moni] != nil){
+				/* fire of ME_Exec events */
+				triggermonitor(up->monitors[moni], (MT_Process|ME_Exec));
+				/* if a monitor doesn't have MM_Stalk set clear it out for the
+					new program. If it does then keep it around */
+				if(!(up->monitors[moni]->events & MM_Stalk))
+					_freemonitor(up->monitors[moni]);
+			}
+	}
 
 	up->errbuf0[0] = '\0';
 	up->errbuf1[0] = '\0';
@@ -1486,6 +1510,32 @@ sys_msgctl(va_list list)
 	return (uintptr)up->mbox.ctl;
 }
 
+// sys_monitor(int object, u32int events) -> s32int [+ errstr]
+uintptr
+sys_monitor(va_list list)
+{
+	int object;
+	u32int events;
+	Proc *targetproc;
+	int index;
+	ObjMonitor *mon;
+
+	object = va_arg(list, int);
+	events = va_arg(list, u32int);
+
+	if(!(events & MT_Process))
+		error(Egreg);
+
+	index = procindex((ulong)object);
+	if(index < 0)
+		error(Enoproc);
+	targetproc = proctab(index);
+	assert(targetproc);
+
+	mon = procmonitor(up, targetproc, events);
+
+	return mon->id;
+}
 
 #include "../port/systab.h"
 
