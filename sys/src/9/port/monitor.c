@@ -13,7 +13,7 @@ typedef struct MonitorMsg MonitorMsg;
 
 #pragma pack on
 struct MonitorMsg {
-	s64int id; /* monitor id */
+	s32int id; /* monitor id */
 	u32int event; /* events triggered */
 	s32int object; /* pid or fid */
 	u64int len; /* for files: how much can be read/written */
