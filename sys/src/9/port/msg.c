@@ -9,63 +9,26 @@
 #include "tos.h"
 #include "ureg.h"
 
-enum {
-	MsgMagic = 0xdeadbeef,
-	MsgHeaderSize = 3*sizeof(u32int),
-};
-
-#pragma pack on
-typedef struct {
-	u32int magic;
-	u32int tag;
-	u32int pid;
-	char data[1];
-} StdMessage;
-#pragma pack off
-
 Message*
-newmessage(void *data, uintptr sz)
+newmessage(s32int tag, void *data, uintptr sz)
 {
 	Message *new;
 
 	if(!(new = mallocz(sizeof(Message), 1)))
 		error(Enomem);
-	new->size = sz;
+	new->size = sz+sizeof(s32int);
+	new->tag = tag;
 	new->next = nil;
-	new->data = mallocz(sz, 1);
-	if(!new->data){
+	new->rawmsg = mallocz(sz+sizeof(s32int), 1);
+	if(!new->rawmsg){
 		free(new);
 		error(Enomem);
 	}
-	memset(new->data, 0, sz);
-	memmove(new->data, data, sz);
-	return new;
-}
-
-Message*
-newstdmessage(int tag, uvlong pid, void *srcdata, uintptr sz)
-{
-	Message *new;
-	StdMessage *stdmsg;
-
-	if(!(new = mallocz(sizeof(Message), 1)))
-		error(Enomem);
-
-	new->size = sz + MsgHeaderSize;
-	new->next = nil;
-	new->data = mallocz(new->size, 1);
-	if(!new->data){
-		free(new);
-		error(Enomem);
-	}
-
-	stdmsg = (void*)new->data;
-
-	stdmsg->magic = MsgMagic;
-	stdmsg->tag = tag;
-	stdmsg->pid = (s32int)pid;
-	memmove(&stdmsg->data[0], srcdata, sz);
-
+	new->data = &new->rawmsg->data[0];
+	memset(new->rawmsg, 0, sz);
+	new->rawmsg->tag = new->tag;
+	if(data != nil)
+		memmove(new->data, data, sz);
 	return new;
 }
 
@@ -77,7 +40,7 @@ freemessage(Message *msg)
 	if(!msg)
 		return nil;
 	next = msg->next;
-	free(msg->data);
+	free(msg->rawmsg);
 	free(msg);
 	return next;
 }

@@ -1430,11 +1430,12 @@ sys_nsec(va_list list)
 	return 0;
 }
 
-// int sys_msgsend(ulong tpid, void*, uintptr) -> int [+ errstr]
+// int sys_msgsend(ulong tpid, s32int tag, void* data, uintptr datasz) -> int [+ errstr]
 uintptr
 sys_msgsend(va_list list)
 {
 	ulong targetpid;
+	s32int tag;
 	void *msgdata;
 	uintptr msgsz;
 	Message *newmsg;
@@ -1442,6 +1443,7 @@ sys_msgsend(va_list list)
 	int index;
 
 	targetpid = va_arg(list, ulong);
+	tag = va_arg(list, u32int);
 	msgdata = va_arg(list, void*);
 	msgsz = va_arg(list, uintptr);
 	if(msgdata == nil)
@@ -1456,7 +1458,7 @@ sys_msgsend(va_list list)
 	targetproc = proctab(index);
 	assert(targetproc);
 
-	newmsg = newmessage(msgdata, msgsz);
+	newmsg = newmessage(tag, msgdata, msgsz);
 	assert(newmsg);
 	
 	return (uintptr)psendmsg(targetproc, newmsg);
@@ -1489,7 +1491,7 @@ sys_msgrecv(va_list list)
 	fetchedmsg = precvmsg(dstbufsz);
 	assert(fetchedmsg);
 	memset(dstbuf, 0, dstbufsz);
-	memmove(dstbuf, fetchedmsg->data, fetchedmsg->size);
+	memmove(dstbuf, fetchedmsg->rawmsg, fetchedmsg->size);
 	freemessage(fetchedmsg);
 
 	return 0;

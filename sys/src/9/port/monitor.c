@@ -135,8 +135,8 @@ freemonitor(ObjMonitor *m)
 int
 triggermonitor(ObjMonitor *m, u32int event)
 {
-	MonitorMsg *monmsg;
 	Message *msg;
+	MonitorMsg *monmsg;
 
 	if(m == nil)
 		return 0;
@@ -145,14 +145,16 @@ triggermonitor(ObjMonitor *m, u32int event)
 	if(!(m->srcproc->mbox.ctl & (MSGENABLE|MSGMONITOR)))
 		return -1;
 
-	if(!(monmsg = mallocz(sizeof(MonitorMsg), 1)))
+	msg = newmessage(TagMonitor, nil, sizeof(MonitorMsg));
+	if(!msg)
 		error(Enomem);
+	monmsg = msg->data;
 	monmsg->id = m->id;
 	monmsg->event = event;
 	if(event & MT_Process)
 		monmsg->object = m->pobject->pid;
 
-	msg = newstdmessage(TagMonitor, m->srcproc->pid, monmsg, sizeof(MonitorMsg));
+	msg = newmessage(TagMonitor, monmsg, sizeof(MonitorMsg));
 	if(psendmsg(m->srcproc, msg) < 0){
 		freemessage(msg);
 		return -1;
