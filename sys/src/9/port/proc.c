@@ -1423,9 +1423,11 @@ pexit(char *exitstr, int freemem)
 
 	/* clean up monitors */
 	for(moni = 0; moni < up->own_monitors_len; moni++)
-		_freemonitor(up->own_monitors[moni]);
+		if(up->own_monitors[moni])
+			_freemonitor(up->own_monitors[moni]);
 	for(moni = 0; moni < up->monitors_len; moni++)
-		_freemonitor(up->monitors[moni]);
+		if(up->monitors[moni])
+			_freemonitor(up->monitors[moni]);
 	if(up->own_monitors){
 		free(up->own_monitors);
 		up->own_monitors = nil;
