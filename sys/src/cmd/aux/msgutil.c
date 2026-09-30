@@ -10,6 +10,7 @@ enum {
 	Raw,
 	Formatted,
 	Detect,
+	Monitor,
 	MsgMagic = 0xdeadbeef,
 	MsgHeaderSize = 3*sizeof(u32int),
 };
@@ -72,6 +73,7 @@ usage(void)
 {
 	fprint(2, "usage: %s [-R|-F] [-T tag] [-n times] -s pid message\n", argv0);
 	fprint(2, "       %s [-R|-F|-D] [-A] [-n times] -r\n", argv0);
+	fprint(2, "       %s -M pid\n", argv0);
 	exits("usage");
 }
 
@@ -89,6 +91,8 @@ main(int argc, char *argv[])
 	u32int ctlextra = 0;
 	Message *msg = nil;
 	MMessage tmp;
+	int mid;
+	MonitorMsg *monmsg;
 
 	argv0 = argv[0];
 	ARGBEGIN{
@@ -111,6 +115,10 @@ main(int argc, char *argv[])
 	case 'D':
 		type = Detect;
 		break;
+	case 'M':
+		job = Monitor;
+		target = atoi(EARGF(usage()));
+		break;
 	case 'T':
 		tag = atoi(EARGF(usage()));
 		break;
@@ -129,6 +137,27 @@ main(int argc, char *argv[])
 		break;
 	case Usage:
 		usage();
+		break;
+	case Monitor:
+		msgenable();
+		mid = sys_monitor(target, (MT_Process|ME_Death));
+		if(mid < 0){
+			fprint(2, "error: unable to monitor process %lud: %r\n", target);
+			exits("monitor");
+		}
+		msg = msgrecv(nil);
+		if(msg == nil){
+			fprint(2, "error: got nil message: %r\n");
+			exits("nil message");
+		}
+		if(msg->tag != TagMonitor){
+			fprint(2, "error: recieved spurious message\n");
+			exits("spurious message");
+		}
+		monmsg = msg->data;
+		fprint(2, "got monitor %d: event = %x, pid = %d\n",
+					monmsg->id, monmsg->event, monmsg->object);
+		exits(nil);
 		break;
 	case Send:
 		if(argc != 1)
