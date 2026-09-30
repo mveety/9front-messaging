@@ -18,7 +18,7 @@ This repo contains a kernel which add four message passing system calls. Some ex
 
 	Gets or sets the processes message control bitmap. If op = `Mctlread`, ctl is ignored and sys_msgctl returns the current message control bitmap. If op = `Mctlwrite`, sys_msgctl tries to set the bitmap to `ctl` and returns the resulting bitmap. When `Mctlwrite` is set an error occured when `ctl` is not equal to the return value.
 
-* 's32int sys_monitor(int object, u32int events)'
+* `s32int sys_monitor(int object, u32int events)`
 
 	Sets a monitor on process id or file id `object`. Monitors send messages when `events` occur on `object`. Returns a monitor id. Sets errstr.
 
@@ -27,7 +27,7 @@ This repo contains a kernel which add four message passing system calls. Some ex
 
 	By default a process can't receive messages until `MSGENABLE` is set.
 
-* 'MSGMONITOR'
+* `MSGMONITOR`
 
 	Allows acceptance of monitor (tag = -128) messages.
 
