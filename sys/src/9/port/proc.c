@@ -1379,18 +1379,7 @@ pexit(char *exitstr, int freemem)
 
 	qlock(&up->debug);
 
-	lock(&up->exl);		/* Prevent my children from leaving waits */
-	pidfree(up);
-	up->parent = nil;
-	up->nchild = up->nwait = 0;
-	wakeup(&up->waitr);
-	unlock(&up->exl);
-
-	while((wq = up->waitq) != nil){
-		up->waitq = wq->next;
-		free(wq);
-	}
-
+	/* trigger monitors */
 	if(up->notified){
 		uintptr notesz;
 		if(up->lastnote->flag == NDebug)
@@ -1405,6 +1394,23 @@ pexit(char *exitstr, int freemem)
 				monitorflag |= ME_Interrupt;
 		}
 	}
+	lock(&up->monitorlock);
+	if(up->monitored){
+		for(moni = 0; moni < up->monitors_len; moni++)
+			triggermonitor(up->monitors[moni], monitorflag);
+	}
+
+	lock(&up->exl);		/* Prevent my children from leaving waits */
+	pidfree(up);
+	up->parent = nil;
+	up->nchild = up->nwait = 0;
+	wakeup(&up->waitr);
+	unlock(&up->exl);
+
+	while((wq = up->waitq) != nil){
+		up->waitq = wq->next;
+		free(wq);
+	}
 
 	freenotes(up);
 	freenote(up->lastnote);
@@ -1413,13 +1419,6 @@ pexit(char *exitstr, int freemem)
 	up->noteureg = nil;
 	up->dbgreg = nil;
 	flushmailbox(&up->mbox);
-
-	lock(&up->monitorlock);
-	/* trigger monitors */
-	if(up->monitored){
-		for(moni = 0; moni < up->monitors_len; moni++)
-			triggermonitor(up->monitors[moni], monitorflag);
-	}
 
 	/* clean up monitors */
 	for(moni = 0; moni < up->own_monitors_len; moni++)
