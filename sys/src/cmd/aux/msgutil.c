@@ -72,7 +72,7 @@ usage(void)
 {
 	fprint(2, "usage: %s [-t tag] [-n times] -s pid message\n", argv0);
 	fprint(2, "       %s [-A] [-n times] -r\n", argv0);
-	fprint(2, "       %s [-o] -m pid\n", argv0);
+	fprint(2, "       %s [-o] [-TS] -m pid\n", argv0);
 	exits("usage");
 }
 
@@ -94,6 +94,8 @@ main(int argc, char *argv[])
 	uintptr tmpsz = 0;
 	int oneshot = 0;
 	char *parsedevent;
+	u32int events = (MT_Process|ME_Death|ME_Rfork|ME_Exec|ME_Interrupt|
+		ME_Hangup|ME_Alarm|ME_Abort);
 
 	argv0 = argv[0];
 	ARGBEGIN{
@@ -120,6 +122,12 @@ main(int argc, char *argv[])
 	case 'A':
 		ctlextra |= MSGALLUSERS;
 		break;
+	case 'T':
+		events |= MM_Track;
+		break;
+	case 'S':
+		events |= MM_Stalk;
+		break;
 	case 'h':
 	default:
 		usage();
@@ -135,9 +143,10 @@ main(int argc, char *argv[])
 		break;
 	case Monitor:
 		msgenable();
-		mid = sys_monitor(target,
-			(MT_Process|ME_Death|ME_Rfork|ME_Exec|ME_Interrupt|
-				ME_Hangup|ME_Alarm|ME_Abort));
+		mid = sys_monitor(target, events);
+		parsedevent = parse_event(events);
+		fprint(2, "monitoring %lud for %s (%x)\n", target, parsedevent, events);
+		free(parsedevent);
 		if(mid < 0){
 			fprint(2, "error: unable to monitor process %lud: %r\n", target);
 			exits("monitor");
