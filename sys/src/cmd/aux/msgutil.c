@@ -11,12 +11,68 @@ enum {
 
 char *argv0;
 
+char*
+append_string(char *s1, char *s2)
+{
+	char *res;
+
+	if(s1 == nil)
+		return smprint("%s", s2);
+
+	res = smprint("%s|%s", s1, s2);
+	free(s1);
+	return res;
+}
+
+char*
+parse_event(u32int event)
+{
+	char *res = nil;
+
+	assert(event & (MT_Process|MT_File));
+
+	if(event & MT_Process)
+		res = append_string(res, "MT_Process");
+	if(event & MT_File)
+		res = append_string(res, "MT_File");
+	if(event & MM_Track)
+		res = append_string(res, "MM_Track");
+	if(event & MM_Stalk)
+		res = append_string(res, "MM_Stalk");
+	if(event & ME_Death)
+		res = append_string(res, "ME_Death");
+	if(event & ME_Rfork)
+		res = append_string(res, "ME_Rfork");
+	if(event & ME_Exec)
+		res = append_string(res, "ME_Exec");
+	if(event & ME_Interrupt)
+		res = append_string(res, "ME_Interrupt");
+	if(event & ME_Hangup)
+		res = append_string(res, "ME_Hangup");
+	if(event & ME_Alarm)
+		res = append_string(res, "ME_Alarm");
+	if(event & ME_Abort)
+		res = append_string(res, "ME_Abort");
+	if(event & ME_Read)
+		res = append_string(res, "ME_Read");
+	if(event & ME_Write)
+		res = append_string(res, "ME_Write");
+	if(event & ME_Remove)
+		res = append_string(res, "ME_Remove");
+	if(event & ME_Close)
+		res = append_string(res, "ME_Close");
+	if(event & ME_Open)
+		res = append_string(res, "ME_Open");
+
+	return res;
+}
+
 void
 usage(void)
 {
 	fprint(2, "usage: %s [-t tag] [-n times] -s pid message\n", argv0);
 	fprint(2, "       %s [-A] [-n times] -r\n", argv0);
-	fprint(2, "       %s -m pid\n", argv0);
+	fprint(2, "       %s [-o] -m pid\n", argv0);
 	exits("usage");
 }
 
@@ -36,6 +92,8 @@ main(int argc, char *argv[])
 	MonitorMsg *monmsg;
 	char *tmp = nil;
 	uintptr tmpsz = 0;
+	int oneshot = 0;
+	char *parsedevent;
 
 	argv0 = argv[0];
 	ARGBEGIN{
@@ -56,6 +114,9 @@ main(int argc, char *argv[])
 	case 't':
 		tag = atoi(EARGF(usage()));
 		break;
+	case 'o':
+		oneshot = 1;
+		break;
 	case 'A':
 		ctlextra |= MSGALLUSERS;
 		break;
@@ -74,24 +135,36 @@ main(int argc, char *argv[])
 		break;
 	case Monitor:
 		msgenable();
-		mid = sys_monitor(target, (MT_Process|ME_Death));
+		mid = sys_monitor(target,
+			(MT_Process|ME_Death|ME_Rfork|ME_Exec|ME_Interrupt|
+				ME_Hangup|ME_Alarm|ME_Abort));
 		if(mid < 0){
 			fprint(2, "error: unable to monitor process %lud: %r\n", target);
 			exits("monitor");
 		}
-		msg = msgrecv(nil);
-		if(msg == nil){
-			fprint(2, "error: got nil message: %r\n");
-			exits("nil message");
+		for(;;){
+			msg = msgrecv(nil);
+			if(msg == nil){
+				fprint(2, "error: got nil message: %r\n");
+				exits("nil message");
+			}
+			if(msg->tag != TagMonitor){
+				fprint(2, "error: recieved spurious message\n");
+				exits("spurious message");
+			}
+			monmsg = msg->data;
+			parsedevent = parse_event(monmsg->event);
+			assert(parsedevent != nil);
+			fprint(2, "got monitor %d: event = %s (%x), pid = %d\n",
+						monmsg->id, parsedevent, monmsg->event, monmsg->object);
+			if(monmsg->event & ME_Death)
+				exits(nil);
+			if(oneshot){
+				fprint(2, "exiting after one shot monitor\n");
+				exits("oneshot");
+			}
+			free(parsedevent);
 		}
-		if(msg->tag != TagMonitor){
-			fprint(2, "error: recieved spurious message\n");
-			exits("spurious message");
-		}
-		monmsg = msg->data;
-		fprint(2, "got monitor %d: event = %x, pid = %d\n",
-					monmsg->id, monmsg->event, monmsg->object);
-		exits(nil);
 		break;
 	case Send:
 		if(argc != 1)
