@@ -36,6 +36,9 @@ enum {
 	ME_Hangup = 1<<10,	// process got hangup note
 	ME_Alarm = 1<<11,	// process got alarm note
 	ME_Abort = 1<<12,	// process aborted
+	ME_AllProc = (ME_Death|ME_Rfork|ME_Exec|ME_Interrupt|ME_Hangup|ME_Alarm|ME_Abort),
+	ME_ProcFail = (ME_Interrupt|ME_Hangup|ME_Alarm|ME_Abort),
+	ME_ProcSpawn = (ME_Rfork|ME_Exec),
 
 // file events
 	ME_Read = 1<<16, /* ready to be read */
@@ -43,6 +46,7 @@ enum {
 	ME_Remove = 1<<18, /* file got unlinked */
 	ME_Close = 1<<19, /* you or someone else closed the file */
 	ME_Open = 1<<20, /* someone else opened the file */
+	ME_AllFile = (ME_Read|ME_Write|ME_Remove|ME_Close|ME_Open),
 };
 
 #pragma pack on
