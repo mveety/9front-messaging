@@ -46,8 +46,6 @@ sysrfork(va_list list)
 	if((flag & (RFENVG|RFCENVG)) == (RFENVG|RFCENVG))
 		error(Ebadarg);
 
-	proctriggermonitors(up, (MT_Process|ME_Rfork));
-
 	if((flag&RFPROC) == 0) {
 		Fgrp *ofg;
 		Pgrp *opg;
@@ -178,6 +176,15 @@ sysrfork(va_list list)
 
 	pid = pidalloc(p);
 
+	/* Monitors */
+	proctriggermonitors(up, (MT_Process|ME_Rfork));
+	if(up->monitored){
+		for(uintptr moni = 0; moni < up->monitors_len; moni++)
+			if(up->monitors[moni] != nil && 
+					up->monitors[moni]->events & (MM_Track|MM_Stalk))
+				dupprocmonitor(up->monitors[moni], p);
+	}
+
 	qunlock(&p->debug);
 	qunlock(&up->debug);
 
@@ -243,14 +250,6 @@ sysrfork(va_list list)
 	else {
 		p->egrp = up->egrp;
 		incref(up->egrp);
-	}
-
-	/* Monitors */
-	if(up->monitored){
-		for(uintptr moni = 0; i < up->monitors_len; i++)
-			if(up->monitors[moni] != nil && 
-					up->monitors[moni]->events & (MM_Track|MM_Stalk))
-				dupprocmonitor(up->monitors[moni], p);
 	}
 
 	procfork(p);
