@@ -74,7 +74,7 @@ usage(void)
 {
 	fprint(2, "usage: %s [-t tag] [-n times] -s pid message\n", argv0);
 	fprint(2, "       %s [-A] [-n times] -r\n", argv0);
-	fprint(2, "       %s [-o] [-TSE] -m pid\n", argv0);
+	fprint(2, "       %s [-o] [-TSE] [-n times] -m pid\n", argv0);
 	exits("usage");
 }
 
@@ -156,7 +156,7 @@ main(int argc, char *argv[])
 			fprint(2, "error: unable to monitor process %lud: %r\n", target);
 			exits("monitor");
 		}
-		for(;;){
+		for(int i = 0; i < ntimes;){
 			msg = msgrecv(nil);
 			if(msg == nil){
 				fprint(2, "error: got nil message: %r\n");
@@ -172,13 +172,15 @@ main(int argc, char *argv[])
 			fprint(2, "got monitor %d: event = %s (%x), pid = %d\n",
 						monmsg->id, parsedevent, monmsg->event, monmsg->object);
 			if(monmsg->event & ME_Death)
-				exits(nil);
+				i++;
 			if(oneshot){
 				fprint(2, "exiting after one shot monitor\n");
 				exits("oneshot");
 			}
 			free(parsedevent);
+			freemessage(msg);
 		}
+		exits(nil);
 		break;
 	case Send:
 		if(argc != 1)
