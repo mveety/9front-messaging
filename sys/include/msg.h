@@ -27,6 +27,7 @@ enum {
 // monitor modifiers
 	MM_Track = 1<<3,	// (for processes) implicitly monitor target children until exec
 	MM_Stalk = 1<<4,	// (for processes) implicitly monitor all target children forever
+	MM_Exec = 1<<5,		// (for processes) monitor survives execs
 
 // process events
 	ME_Death = 1<<6,	// process death

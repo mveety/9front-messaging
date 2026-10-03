@@ -283,6 +283,7 @@ ulong		procpagecount(Proc*);
 void		procpriority(Proc*, int, int);
 void		procsetuser(char*);
 Proc*		proctab(int);
+void		proctriggermonitors(Proc*, u32int);
 extern void	(*proctrace)(Proc*, int, vlong); 
 void		procwired(Proc*, int);
 int			psendmsg(Proc*, Message*);

@@ -163,6 +163,19 @@ triggermonitor(ObjMonitor *m, u32int event)
 	return 0;
 }
 
+void
+proctriggermonitors(Proc *p, u32int event)
+{
+	uintptr i;
+
+	if(p->monitored)
+		for(i = 0; i < p->monitors_len; i++){
+			if(p->monitors[i] == nil)
+				continue;
+			triggermonitor(p->monitors[i], event);
+		}
+}
+
 ObjMonitor*
 procmonitor(Proc *parent, Proc *target, u32int events)
 {

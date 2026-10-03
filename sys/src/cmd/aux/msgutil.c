@@ -11,7 +11,7 @@ enum {
 
 char *argv0;
 
-char*
+char* /* gross but functional */
 append_string(char *s1, char *s2)
 {
 	char *res;
@@ -39,6 +39,8 @@ parse_event(u32int event)
 		res = append_string(res, "MM_Track");
 	if(event & MM_Stalk)
 		res = append_string(res, "MM_Stalk");
+	if(event & MM_Exec)
+		res = append_string(res, "MM_Exec");
 	if(event & ME_Death)
 		res = append_string(res, "ME_Death");
 	if(event & ME_Rfork)
@@ -72,7 +74,7 @@ usage(void)
 {
 	fprint(2, "usage: %s [-t tag] [-n times] -s pid message\n", argv0);
 	fprint(2, "       %s [-A] [-n times] -r\n", argv0);
-	fprint(2, "       %s [-o] [-TS] -m pid\n", argv0);
+	fprint(2, "       %s [-o] [-TSE] -m pid\n", argv0);
 	exits("usage");
 }
 
@@ -127,6 +129,9 @@ main(int argc, char *argv[])
 		break;
 	case 'S':
 		events |= MM_Stalk;
+		break;
+	case 'E':
+		events |= MM_Exec;
 		break;
 	case 'h':
 	default:

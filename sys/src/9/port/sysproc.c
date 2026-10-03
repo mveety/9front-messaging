@@ -46,6 +46,8 @@ sysrfork(va_list list)
 	if((flag & (RFENVG|RFCENVG)) == (RFENVG|RFCENVG))
 		error(Ebadarg);
 
+	proctriggermonitors(up, (MT_Process|ME_Rfork));
+
 	if((flag&RFPROC) == 0) {
 		Fgrp *ofg;
 		Pgrp *opg;
@@ -246,13 +248,9 @@ sysrfork(va_list list)
 	/* Monitors */
 	if(up->monitored){
 		for(uintptr moni = 0; i < up->monitors_len; i++)
-			if(up->monitors[moni] != nil){
-				/* trigger any rfork events */
-				triggermonitor(up->monitors[moni], (MT_Process|ME_Rfork));
-				/* copy any MM_Track and/or MM_Stalk monitors */
-				if(up->monitors[moni]->events & (MM_Track|MM_Stalk))
-					dupprocmonitor(up->monitors[moni], p);
-			}
+			if(up->monitors[moni] != nil && 
+					up->monitors[moni]->events & (MM_Track|MM_Stalk))
+				dupprocmonitor(up->monitors[moni], p);
 	}
 
 	procfork(p);
@@ -687,15 +685,12 @@ sysexec(va_list list)
 	procsetup(up);
 	qunlock(&up->debug);
 	flushmailbox(&up->mbox);
+	proctriggermonitors(up, (MT_Process|ME_Exec));
 
 	if(up->monitored){
 		for(uintptr moni = 0; moni < up->monitors_len; moni++)
 			if(up->monitors[moni] != nil){
-				/* fire of ME_Exec events */
-				triggermonitor(up->monitors[moni], (MT_Process|ME_Exec));
-				/* if a monitor doesn't have MM_Stalk set clear it out for the
-					new program. If it does then keep it around */
-				if(!(up->monitors[moni]->events & MM_Stalk))
+				if(!(up->monitors[moni]->events & (MM_Exec|MM_Stalk)))
 					_freemonitor(up->monitors[moni]);
 			}
 	}
