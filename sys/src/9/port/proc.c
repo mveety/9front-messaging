@@ -754,6 +754,7 @@ newproc(void)
 	p->mbox.msgout = 0;
 
 	p->monitored = 0;
+	p->exitmonitor = MT_Process;
 	p->own_monitors_len = 0;
 	p->own_monitors = nil;
 	p->monitors_len = 0;
@@ -1118,6 +1119,15 @@ popnote(Ureg *u)
 	}
 
 	if(up->notify == nil || up->notified){
+		uintptr notelen = strlen(up->lastnote->msg);
+		if(up->monitored){
+			if(notelen >= 5 && strncmp(up->lastnote->msg, "alarm", 5) == 0)
+				up->exitmonitor |= ME_Alarm;
+			else if(notelen >= 6 && strncmp(up->lastnote->msg, "hangup", 6) == 0)
+				up->exitmonitor |= ME_Hangup;
+			else if(notelen >= 9 && strncmp(up->lastnote->msg, "interrupt", 9) == 0)
+				up->exitmonitor |= ME_Interrupt;
+		}
 		qunlock(&up->debug);
 		if(up->lastnote->flag == NDebug)
 			pprint("suicide: %s\n", up->lastnote->msg);
@@ -1286,7 +1296,6 @@ pexit(char *exitstr, int freemem)
 	void (*pt)(Proc*, int, vlong);
 	int i;
 	uintptr moni;
-	u32int 	monitorflag = MT_Process|ME_Death;
 
 	up->alarm = 0;
 	timerdel(up);
@@ -1369,6 +1378,37 @@ pexit(char *exitstr, int freemem)
 
 	if(!freemem){
 		edfstop(up);
+		/*
+			I think probably this is the best way to handle broke processes.
+			I feel that the user likely views broken processes as having died,
+			as opposed to the reality of them being alive. This reflects how
+			I think the users see it.
+		*/
+		up->exitmonitor |= ME_Abort;
+
+		lock(&up->monitorlock);
+		proctriggermonitors(up, up->exitmonitor|ME_Death);
+
+		/* clean up monitors */
+		for(moni = 0; moni < up->own_monitors_len; moni++)
+			if(up->own_monitors[moni])
+				_freemonitor(up->own_monitors[moni]);
+		for(moni = 0; moni < up->monitors_len; moni++)
+			if(up->monitors[moni])
+				_freemonitor(up->monitors[moni]);
+		if(up->own_monitors){
+			free(up->own_monitors);
+			up->own_monitors = nil;
+		}
+		if(up->monitors){
+			free(up->monitors);
+			up->monitors = nil;
+		}
+		up->own_monitors_len = 0;
+		up->monitors_len = 0;
+		up->monitored = 0;
+		up->exitmonitor = 0;
+		unlock(&up->monitorlock);
 		addbroken();
 	}
 
@@ -1379,26 +1419,8 @@ pexit(char *exitstr, int freemem)
 
 	qlock(&up->debug);
 
-	/* trigger monitors */
-	if(up->notified){
-		uintptr notesz;
-		if(up->lastnote->flag == NDebug)
-			monitorflag |= ME_Abort;
-		else {
-			notesz = strlen(up->lastnote->msg);
-			if(notesz >= 5 && strncmp(up->lastnote->msg, "alarm", 5) == 0)
-				monitorflag |= ME_Alarm;
-			else if(notesz >= 6 && strncmp(up->lastnote->msg, "hangup", 6) == 0)
-				monitorflag |= ME_Hangup;
-			else if(notesz >= 9 && strncmp(up->lastnote->msg, "interrupt", 9) == 0)
-				monitorflag |= ME_Interrupt;
-		}
-	}
 	lock(&up->monitorlock);
-	if(up->monitored){
-		for(moni = 0; moni < up->monitors_len; moni++)
-			triggermonitor(up->monitors[moni], monitorflag);
-	}
+	proctriggermonitors(up, up->exitmonitor|ME_Death);
 
 	lock(&up->exl);		/* Prevent my children from leaving waits */
 	pidfree(up);
@@ -1438,6 +1460,7 @@ pexit(char *exitstr, int freemem)
 	up->own_monitors_len = 0;
 	up->monitors_len = 0;
 	up->monitored = 0;
+	up->exitmonitor = 0;
 	unlock(&up->monitorlock);
 
 	/* release debuggers */
@@ -1831,6 +1854,9 @@ killproc(Proc *p, int ctl)
 		unbreak(p);
 		return;
 	}
+
+	proctriggermonitors(p, MT_Process|ME_Interrupt);
+
 	if(ctl != 0)
 		p->procctl = ctl;
 	incref(&killnote);

@@ -696,6 +696,7 @@ enum {
 // monitor modifiers
 	MM_Track = 1<<3,	// (for processes) implicitly monitor target children until exec
 	MM_Stalk = 1<<4,	// (for processes) implicitly monitor all target children forever
+	MM_Exec = 1<<5,		// (for processes) monitor survives execs
 
 // process events
 	ME_Death = 1<<6,
@@ -885,6 +886,7 @@ struct Proc
 
 	Lock monitorlock;
 	int monitored; /* non-zero if monitored */
+	u32int exitmonitor;
 	uintptr own_monitors_len; 
 	ObjMonitor **own_monitors;
 	uintptr monitors_len;
