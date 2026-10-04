@@ -59,3 +59,4 @@ extern char Enomsgs[];		/* no messages */
 extern char Embxseek[];		/* seek in mailbox */
 extern char Esmolbuf[];		/* message buffer too small */
 extern char Enoproc[];		/* non-existent process */
+extern char Enomonitor[];	/* non-existent monitor */
