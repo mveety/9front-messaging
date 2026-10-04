@@ -213,7 +213,8 @@ ParentRetry:
 		error(Enomem);
 	}
 	if(parent->own_monitors_len != 0){
-		memmove(newmonarray, parent->own_monitors, parent->own_monitors_len);
+		memmove(newmonarray, parent->own_monitors,
+			parent->own_monitors_len*sizeof(ObjMonitor*));
 		free(parent->own_monitors);
 	}
 	parent->own_monitors = newmonarray;
@@ -243,7 +244,8 @@ TargetRetry:
 		error(Enomem);
 	}
 	if(target->monitors_len != 0){
-		memmove(newmonarray, target->monitors, target->monitors_len);
+		memmove(newmonarray, target->monitors,
+			target->monitors_len*sizeof(ObjMonitor*));
 		free(target->monitors);
 	}
 	target->monitors = newmonarray;
