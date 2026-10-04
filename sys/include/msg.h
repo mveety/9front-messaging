@@ -18,6 +18,11 @@ enum {
 
 // standard tags
 	TagDefault = 0,
+	TagError = -1,
+	TagNameError = -48,
+	TagNameResponse = -49,
+	TagRequestName = -50,
+	TagRegisterName = -51,
 	TagMonitor = -128,
 
 // monitor types

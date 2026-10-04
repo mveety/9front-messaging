@@ -1528,6 +1528,17 @@ sys_monitor(va_list list)
 	targetproc = proctab(index);
 	assert(targetproc);
 
+	// parent needs to have messages enable and be accepting
+	// monitor messages
+	if(!(up->mbox.ctl & (MSGENABLE|MSGMONITOR)))
+		error(Egoaway);
+
+	// hostowner can monitor all processes
+	// otherwise users can only monitor their own processes
+	if(!(targetproc->mbox.ctl & MSGALLUSERS))
+		if(!iseve() && strcmp(up->user, targetproc->user) != 0)
+			error(Eperm);
+
 	mon = procmonitor(up, targetproc, events);
 
 	return mon->id;
