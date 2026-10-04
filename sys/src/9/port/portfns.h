@@ -18,6 +18,7 @@ void		bootlinks(void);
 void		cachedel(Image*, uintptr);
 void		cachepage(Page*, Image*);
 void		callwithureg(void(*)(Ureg*));
+int			cancelmonitor(Proc*, int);
 char*		chanpath(Chan*);
 int		canlock(Lock*);
 int		canmount(Pgrp*);

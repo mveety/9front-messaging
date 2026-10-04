@@ -261,3 +261,20 @@ dupprocmonitor(ObjMonitor *m, Proc *newtarget)
 {
 	return procmonitor(m->srcproc, newtarget, m->events);
 }
+
+int
+cancelmonitor(Proc *parent, int mid)
+{
+	uintptr i;
+	ObjMonitor *m;
+
+	if(parent->own_monitors == nil)
+		return -1;
+	for(i = 0; i < parent->own_monitors_len; i++)
+		if(parent->own_monitors[i] != nil && parent->own_monitors[i]->id == mid){
+			m = parent->own_monitors[i];
+			freemonitor(m);
+			return 0;
+		}
+	return -1;
+}

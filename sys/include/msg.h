@@ -25,6 +25,7 @@ enum {
 	TagRegisterName = -51,
 	TagMonitor = -128,
 
+	MT_Cancel = 1<<31,	// cancel a monitor you own
 // monitor types
 	MT_Process = 1<<0,	// get events on processes
 	MT_File = 1<<1,		// get events on file descriptors

@@ -20,7 +20,7 @@ This repo contains a kernel which add four message passing system calls. Some ex
 
 * `s32int sys_monitor(int object, u32int events)`
 
-	Sets a monitor on process id or file id `object`. Monitors send messages when `events` occur on `object`. Returns a monitor id. Sets errstr.
+	Sets a monitor on process id or file id `object`. Monitors send messages when `events` occur on `object`. Returns a monitor id. Sets errstr. If the event is `MT_Cancel` then cancel the monitor given by the id in `object`. Only monitors you own are cancellable.
 
 ## Control Flags
 * `MSGENABLE`
@@ -60,8 +60,14 @@ enum {
 
 // standard tags
 	TagDefault = 0,
+	TagError = -1,
+	TagNameError = -48,
+	TagNameResponse = -49,
+	TagRequestName = -50,
+	TagRegisterName = -51,
 	TagMonitor = -128,
 
+	MT_Cancel = 1<<31,	// cancel a monitor you own
 // monitor types
 	MT_Process = 1<<0,	// get events on processes
 	MT_File = 1<<1,		// get events on file descriptors
@@ -69,6 +75,7 @@ enum {
 // monitor modifiers
 	MM_Track = 1<<3,	// (for processes) implicitly monitor target children until exec
 	MM_Stalk = 1<<4,	// (for processes) implicitly monitor all target children forever
+	MM_Exec = 1<<5,		// (for processes) monitor survives execs
 
 // process events
 	ME_Death = 1<<6,	// process death
@@ -78,6 +85,9 @@ enum {
 	ME_Hangup = 1<<10,	// process got hangup note
 	ME_Alarm = 1<<11,	// process got alarm note
 	ME_Abort = 1<<12,	// process aborted
+	ME_AllProc = (ME_Death|ME_Rfork|ME_Exec|ME_Interrupt|ME_Hangup|ME_Alarm|ME_Abort),
+	ME_ProcFail = (ME_Interrupt|ME_Hangup|ME_Alarm|ME_Abort),
+	ME_ProcSpawn = (ME_Rfork|ME_Exec),
 
 // file events
 	ME_Read = 1<<16, /* ready to be read */
@@ -85,6 +95,7 @@ enum {
 	ME_Remove = 1<<18, /* file got unlinked */
 	ME_Close = 1<<19, /* you or someone else closed the file */
 	ME_Open = 1<<20, /* someone else opened the file */
+	ME_AllFile = (ME_Read|ME_Write|ME_Remove|ME_Close|ME_Open),
 };
 ```
 

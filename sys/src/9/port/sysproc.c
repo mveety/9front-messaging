@@ -1519,6 +1519,12 @@ sys_monitor(va_list list)
 	object = va_arg(list, int);
 	events = va_arg(list, u32int);
 
+	if(events & MT_Cancel){
+		if(cancelmonitor(up, object) < 0)
+			error(Enomonitor);
+		return 0;
+	}
+
 	if(!(events & MT_Process))
 		error(Egreg);
 
