@@ -822,11 +822,15 @@ readerproc(void* a)
 			}
 
 			/* map to mouse buttons */
-			b |= s->b & 1;
-			if(s->b & (4|8))
-				b |= 2;
+			b |= s->b & 1; // button 1
+			if(s->b & 4)
+				b |= 2; // button 2 (orig (4|8))
 			if(s->b & 2)
-				b |= 4;
+				b |= 4; // button 3
+			if(s->b & 8)
+				b |= (1<<5); // button 4
+			if(s->b & 16)
+				b |= (1<<6); // button 5
 			bpress |= s->m;
 
 			/* X/Y are absolute? */
