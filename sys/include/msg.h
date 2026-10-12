@@ -19,6 +19,9 @@ enum {
 // standard tags
 	TagDefault = 0,
 	TagError = -1,
+	TagSupervisorExec = -2,
+	TagSupervisorExit = -3,
+	TagSuperChildExit = -4,
 	TagNameError = -48,
 	TagNameResponse = -49,
 	TagRequestName = -50,
