@@ -177,7 +177,7 @@ sysrfork(va_list list)
 	pid = pidalloc(p);
 
 	/* Monitors */
-	proctriggermonitors(up, (MT_Process|ME_Rfork));
+	proctriggermonitors(up, (MT_Process|ME_Rfork), 0, 0);
 	if(up->monitored){
 		for(uintptr moni = 0; moni < up->monitors_len; moni++)
 			if(up->monitors[moni] != nil && 
@@ -684,7 +684,7 @@ sysexec(va_list list)
 	procsetup(up);
 	qunlock(&up->debug);
 	flushmailbox(&up->mbox);
-	proctriggermonitors(up, (MT_Process|ME_Exec));
+	proctriggermonitors(up, (MT_Process|ME_Exec), 0, 0);
 
 	if(up->monitored){
 		for(uintptr moni = 0; moni < up->monitors_len; moni++)
@@ -1513,6 +1513,7 @@ sys_monitor(va_list list)
 	int object;
 	u32int events;
 	Proc *targetproc;
+	Chan *targetchan;
 	int index;
 	ObjMonitor *mon;
 
@@ -1525,27 +1526,36 @@ sys_monitor(va_list list)
 		return 0;
 	}
 
-	if(!(events & MT_Process))
-		error(Egreg);
-
-	index = procindex((ulong)object);
-	if(index < 0)
-		error(Enoproc);
-	targetproc = proctab(index);
-	assert(targetproc);
-
 	// parent needs to have messages enable and be accepting
 	// monitor messages
 	if(!(up->mbox.ctl & (MSGENABLE|MSGMONITOR)))
 		error(Egoaway);
 
-	// hostowner can monitor all processes
-	// otherwise users can only monitor their own processes
-	if(!(targetproc->mbox.ctl & MSGALLUSERS))
-		if(!iseve() && strcmp(up->user, targetproc->user) != 0)
-			error(Eperm);
+	// we don't yet support file events
+	if(!(events & MT_Process))
+		error(Egreg);
 
-	mon = procmonitor(up, targetproc, events);
+	if(events & MT_Process){
+		index = procindex((ulong)object);
+		if(index < 0)
+			error(Enoproc);
+		targetproc = proctab(index);
+		assert(targetproc);
+
+		// hostowner can monitor all processes
+		// otherwise users can only monitor their own processes
+		if(!(targetproc->mbox.ctl & MSGALLUSERS))
+			if(!iseve() && strcmp(up->user, targetproc->user) != 0)
+				error(Eperm);
+
+		mon = procmonitor(up, targetproc, events);
+	} else if(events & MT_File){
+		targetchan = fdtochan(object, -1, 1, 0); // ?
+		if(!targetchan)
+			error(Ebadfd);
+		mon = chanmonitor(up, targetchan, events);
+	} else
+		error(Ebadevent);
 
 	return mon->id;
 }

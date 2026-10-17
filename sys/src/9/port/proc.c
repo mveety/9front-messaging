@@ -1387,7 +1387,7 @@ pexit(char *exitstr, int freemem)
 		up->exitmonitor |= ME_Abort;
 
 		lock(&up->monitorlock);
-		proctriggermonitors(up, up->exitmonitor|ME_Death);
+		proctriggermonitors(up, up->exitmonitor|ME_Death, 0, 0);
 
 		/* clean up monitors */
 		for(moni = 0; moni < up->own_monitors_len; moni++)
@@ -1420,7 +1420,7 @@ pexit(char *exitstr, int freemem)
 	qlock(&up->debug);
 
 	lock(&up->monitorlock);
-	proctriggermonitors(up, up->exitmonitor|ME_Death);
+	proctriggermonitors(up, up->exitmonitor|ME_Death, 0, 0);
 
 	lock(&up->exl);		/* Prevent my children from leaving waits */
 	pidfree(up);
@@ -1855,7 +1855,7 @@ killproc(Proc *p, int ctl)
 		return;
 	}
 
-	proctriggermonitors(p, MT_Process|ME_Interrupt);
+	proctriggermonitors(p, MT_Process|ME_Interrupt, 0, 0);
 
 	if(ctl != 0)
 		p->procctl = ctl;
