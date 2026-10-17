@@ -221,6 +221,11 @@ struct Chan
 	Qid	mqid;			/* qid of root of mount point */
 	Path*	path;
 	char*	srvname;		/* /srv/name when posted */
+
+	Lock monitorlock;
+	int monitored;
+	uintptr monitors_len;
+	ObjMonitor **monitors;
 };
 
 struct Path
@@ -746,7 +751,11 @@ struct ObjMonitor {
 	s32int id;
 	Proc *srcproc;
 	u32int events;
-	Proc *pobject;
+	union {
+		void *object;
+		Proc *pobject;
+		Chan *cobject;
+	};
 };
 
 struct Proc

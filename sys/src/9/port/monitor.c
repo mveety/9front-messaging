@@ -57,8 +57,9 @@ removemonitorfromproc(Proc *p, ObjMonitor *m, int owner)
 		for(i = 0; i < p->own_monitors_len; i++){
 			if(p->own_monitors[i] == nil)
 				continue;
-			if(p->own_monitors[i] == m && p->own_monitors[i]->id == m->id){
+			if(p->own_monitors[i] == m){
 				p->own_monitors[i] = nil;
+				m->srcproc = nil;
 				return 1;
 			}
 		}
@@ -66,7 +67,7 @@ removemonitorfromproc(Proc *p, ObjMonitor *m, int owner)
 		for(i = 0; i < p->monitors_len; i++){
 			if(p->monitors[i] == nil)
 				continue;
-			if(p->monitors[i] == m && p->monitors[i]->id == m->id){
+			if(p->monitors[i] == m){
 				p->monitors[i] = nil;
 				found++;
 				continue;
@@ -75,7 +76,38 @@ removemonitorfromproc(Proc *p, ObjMonitor *m, int owner)
 		}
 		if(nmons == 0)
 			p->monitored = 0;
+		if(found)
+			m->pobject = nil;
 	}
+	return found;
+}
+
+static int
+removemonitorfromchan(Chan *c, ObjMonitor *m)
+{
+	uintptr i;
+	uintptr nmons = 0;
+	int found = 0;
+
+	if(c == nil)
+		panic("passed nil chan to removemonitorfromchan");
+
+	for(i = 0; i < c->monitors_len; i++){
+		if(c->monitors[i] == nil)
+			continue;
+		if(c->monitors[i] == m){
+			c->monitors[i] = nil;
+			found++;
+			continue;
+		}
+		nmons++;
+	}
+
+	if(nmons == 0)
+		c->monitored = 0;
+	if(found)
+		m->cobject = nil;
+
 	return found;
 }
 
@@ -90,6 +122,8 @@ _freemonitor(ObjMonitor *m)
 
 	if((m->events & MT_Process) && m->pobject)
 		removemonitorfromproc(m->pobject, m, 0);
+	else if((m->events & MT_File) && m->cobject)
+		removemonitorfromchan(m->cobject, m);
 
 	free(m);
 
@@ -99,62 +133,92 @@ _freemonitor(ObjMonitor *m)
 int /* free with locks */
 freemonitor(ObjMonitor *m)
 {
-	int lock_parent = 0;
-	int lock_target = 0;
 	Proc *parent = nil;
-	Proc *target = nil;
+	Proc *target_proc = nil;
+	Chan *target_chan = nil;
 	int res;
 
 	if(m == nil)
 		panic("passed freemonitor a nil monitor");
 
-	if(m->srcproc){
-		lock_parent = 1;
+	if(m->srcproc)
 		parent = m->srcproc;
-	}
-	if((m->events & MT_Process) && m->pobject){
-		lock_target = 1;
-		target = m->pobject;
-	}
 
-	if(lock_parent)
+	if(m->object)
+		if(m->events & MT_Process)
+			target_proc = m->pobject;
+		else if(m->events & MT_File)
+			target_chan = m->cobject;
+		else
+			panic("tried to free monitor with unknown type");
+
+	if(parent)
 		lock(&parent->monitorlock);
-	if(lock_target)
-		lock(&target->monitorlock);
+	if(target_proc)
+		lock(&target_proc->monitorlock);
+	if(target_chan)
+		lock(&target_chan->monitorlock);
 
 	res = _freemonitor(m);
 
-	if(lock_target)
-		unlock(&target->monitorlock);
-	if(lock_parent)
+	if(target_chan)
+		unlock(&target_chan->monitorlock);
+	if(target_proc)
+		unlock(&target_proc->monitorlock);
+	if(parent)
 		unlock(&parent->monitorlock);
 
 	return res;
 }
 
 int
-triggermonitor(ObjMonitor *m, u32int event)
+triggermonitor(ObjMonitor *m, u32int event, u64int len, u64int offset)
 {
 	Message *msg;
 	MonitorMsg *monmsg;
+	s32int object = -1;
 
 	if(m == nil)
 		return 0;
+
+	// check event type
+	if((event & (MT_Process|MT_File)) != (m->events & (MT_Process|MT_File)))
+		return 0;
+
+	// check events match
 	if(!(event & m->events))
 		return 0;
+
+	// check to see if the process is dumb
 	if(!(m->srcproc->mbox.ctl & (MSGENABLE|MSGMONITOR)))
 		return -1;
+
+	if(event & MT_Process)
+		object = m->pobject->pid;
+	else if(event & MT_File){
+		// we need to work out the chan's fd for this proc
+		for(uintptr i = 0; i < m->srcproc->fgrp->nfd; i++)
+			if(m->srcproc->fgrp->fd[i] == m->cobject){
+				object = (s32int)i;
+				break;
+			}
+		if(object < 0){
+			// invalid monitor, cancel it
+			cancelmonitor(m->srcproc, m->id);
+			return 0;
+		}
+	}
 
 	msg = newmessage(TagMonitor, nil, sizeof(MonitorMsg));
 	if(!msg)
 		error(Enomem);
 	monmsg = msg->data;
 	monmsg->id = m->id;
+	monmsg->object = object;
 	monmsg->event = event;
-	if(event & MT_Process)
-		monmsg->object = m->pobject->pid;
+	monmsg->len = len;
+	monmsg->offset = offset;
 
-	msg = newmessage(TagMonitor, monmsg, sizeof(MonitorMsg));
 	if(psendmsg(m->srcproc, msg) < 0){
 		freemessage(msg);
 		return -1;
@@ -164,7 +228,7 @@ triggermonitor(ObjMonitor *m, u32int event)
 }
 
 void
-proctriggermonitors(Proc *p, u32int event)
+proctriggermonitors(Proc *p, u32int event, u64int len, u64int offset)
 {
 	uintptr i;
 
@@ -172,88 +236,148 @@ proctriggermonitors(Proc *p, u32int event)
 		for(i = 0; i < p->monitors_len; i++){
 			if(p->monitors[i] == nil)
 				continue;
-			triggermonitor(p->monitors[i], event);
+			triggermonitor(p->monitors[i], event, len, offset);
 		}
+}
+
+void
+chantriggermonitors(Chan *c, u32int event, u64int len, u64int offset)
+{
+	uintptr i;
+
+	if(c->monitored)
+		for(i = 0; i < c->monitors_len; i++){
+			if(c->monitors[i] == nil)
+				continue;
+			triggermonitor(c->monitors[i], event, len, offset);
+		}
+}
+
+static int
+procaddmonitor(ObjMonitor *mon, Proc *target, int parent)
+{
+	ObjMonitor **newmonarray, **monitors;
+	uintptr newmonarraysz, monitors_len;
+	uintptr i;
+
+	lock(&target->monitorlock);
+Retry:
+	if(parent){
+		monitors_len = target->own_monitors_len;
+		monitors = target->own_monitors;
+	} else {
+		monitors_len = target->monitors_len;
+		monitors = target->monitors;
+	}
+	for(i = 0; i < monitors_len; i++){
+		if(monitors[i] == nil){
+			monitors[i] = mon;
+			if(!parent)
+				target->monitored = 1;
+			goto Done;
+		}
+	}
+
+	newmonarraysz = monitors_len == 0 ? 2 : monitors_len*2;
+	newmonarray = mallocz(sizeof(ObjMonitor*)*newmonarraysz, 1);
+	if(newmonarray == nil){
+		unlock(&target->monitorlock);
+		return -1;
+	}
+	if(monitors_len != 0){
+		memmove(newmonarray, monitors, monitors_len*sizeof(ObjMonitor*));
+		free(monitors);
+	}
+	if(parent){
+		target->own_monitors_len = newmonarraysz;
+		target->own_monitors = newmonarray;
+	} else {
+		target->monitors_len = newmonarraysz;
+		target->monitors = newmonarray;
+	}
+	goto Retry;
+Done:
+	unlock(&target->monitorlock);
+	return 0;
+}
+
+static int
+chanaddmonitor(ObjMonitor *mon, Chan *target)
+{
+	ObjMonitor **newmonarray;
+	uintptr newmonarraysz;
+	uintptr i;
+
+	lock(&target->monitorlock);
+Retry:
+	for(i = 0; i < target->monitors_len; i++){
+		if(target->monitors[i] == nil){
+			target->monitors[i] = mon;
+			target->monitored = 1;
+			goto Done;
+		}
+	}
+
+	newmonarraysz = target->monitors_len == 0 ? 2 : target->monitors_len*2;
+	newmonarray = mallocz(sizeof(ObjMonitor*)*newmonarraysz, 1);
+	if(newmonarray == nil){
+		unlock(&target->monitorlock);
+		return -1;
+	}
+	if(target->monitors_len != 0){
+		memmove(newmonarray, target->monitors, target->monitors_len*sizeof(ObjMonitor*));
+		free(target->monitors);
+	}
+	target->monitors_len = newmonarraysz;
+	target->monitors = newmonarray;
+	goto Retry;
+Done:
+	unlock(&target->monitorlock);
+	return 0;
+}
+
+static ObjMonitor*
+monitorobject(Proc *parent, void *target, u32int events)
+{
+	ObjMonitor *newmon;
+
+	if((newmon = allocmonitor()) == nil)
+		error(Enomem);
+	newmon->srcproc = parent;
+	newmon->object = target;
+	newmon->events = events;
+
+	/* add to the parent */
+	if(procaddmonitor(newmon, parent, 1) < 0)
+		error(Enomem);
+
+	/* add to the target */
+	if(events & MT_Process)
+		if(procaddmonitor(newmon, newmon->pobject, 0) < 0)
+			error(Enomem);
+	else if(events & MT_File)
+		if(chanaddmonitor(newmon, newmon->cobject) < 0)
+			error(Enomem);
+
+	return newmon;
 }
 
 ObjMonitor*
 procmonitor(Proc *parent, Proc *target, u32int events)
 {
-	ObjMonitor *newmon;
-	ObjMonitor **newmonarray;
-	uintptr newmonarraysz;
-	uintptr i;
-
 	if(!(events & MT_Process))
 		return nil;
 
-	if((newmon = allocmonitor()) == nil)
-		error(Enomem);
-	newmon->srcproc = parent;
-	newmon->pobject = target;
-	newmon->events = events;
+	return monitorobject(parent, (void*)target, events);
+}
 
-	/* add to the parent */
-	lock(&parent->monitorlock);
-ParentRetry:
-	for(i = 0; i < parent->own_monitors_len; i++){
-		if(parent->own_monitors[i] == nil){
-			parent->own_monitors[i] = newmon;
-			goto ParentDone;
-		}
-	}
-	if(parent->own_monitors_len == 0)
-		newmonarraysz = 2;
-	else
-		newmonarraysz = parent->own_monitors_len*2;
-	newmonarray = mallocz(sizeof(ObjMonitor*)*newmonarraysz, 1);
-	if(newmonarray == nil){
-		_freemonitor(newmon);
-		unlock(&parent->monitorlock);
-		error(Enomem);
-	}
-	if(parent->own_monitors_len != 0){
-		memmove(newmonarray, parent->own_monitors,
-			parent->own_monitors_len*sizeof(ObjMonitor*));
-		free(parent->own_monitors);
-	}
-	parent->own_monitors = newmonarray;
-	parent->own_monitors_len = newmonarraysz;
-	goto ParentRetry;
-ParentDone:
-	unlock(&parent->monitorlock);
+ObjMonitor*
+chanmonitor(Proc *parent, Chan *target, u32int events)
+{
+	if(!(events & MT_File))
+		return nil;
 
-	/* add to the target */
-	lock(&target->monitorlock);
-TargetRetry:
-	for(i = 0; i < target->monitors_len; i++){
-		if(target->monitors[i] == nil){
-			target->monitors[i] = newmon;
-			target->monitored = 1;
-			goto TargetDone;
-		}
-	}
-	if(target->monitors_len == 0)
-		newmonarraysz = 2;
-	else
-		newmonarraysz = target->monitors_len*2;
-	newmonarray = mallocz(sizeof(ObjMonitor*)*newmonarraysz, 1);
-	if(newmonarray == nil){
-		_freemonitor(newmon);
-		unlock(&target->monitorlock);
-		error(Enomem);
-	}
-	if(target->monitors_len != 0){
-		memmove(newmonarray, target->monitors,
-			target->monitors_len*sizeof(ObjMonitor*));
-		free(target->monitors);
-	}
-	target->monitors = newmonarray;
-	target->monitors_len = newmonarraysz;
-	goto TargetRetry;
-TargetDone:
-	unlock(&target->monitorlock);
-	return newmon;
+	return monitorobject(parent, (void*)target, events);
 }
 
 ObjMonitor* /* for MM_Track and MM_Stalk */
