@@ -1536,6 +1536,8 @@ sys_monitor(va_list list)
 		error(Egreg);
 
 	if(events & MT_Process){
+		if(events & MT_File)
+			error(Ebadevent);
 		index = procindex((ulong)object);
 		if(index < 0)
 			error(Enoproc);
@@ -1550,6 +1552,8 @@ sys_monitor(va_list list)
 
 		mon = procmonitor(up, targetproc, events);
 	} else if(events & MT_File){
+		if(events & MT_Process) // can't happen. cover it anyway
+			error(Ebadevent);
 		targetchan = fdtochan(object, -1, 1, 0); // ?
 		if(!targetchan)
 			error(Ebadfd);
