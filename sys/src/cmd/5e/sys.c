@@ -669,17 +669,19 @@ static void
 sysmsgsend(void)
 {
 	ulong targetpid;
+	s32int tag;
 	u32int msgdata, sz;
 	void *msgdatat;
 	int copied;
 
 	targetpid = arg(0);
-	msgdata = arg(1);
-	sz = arg(2);
+	tag = arg(1);
+	msgdata = arg(2);
+	sz = arg(3);
 	msgdatat = copyifnec(msgdata, sz, &copied);
 	if(systrace)
-		fprint(2, "sys_msgsend(%ld, %#ux, %ud)\n", targetpid, msgdata, sz);
-	P->R[0] = noteerr(sys_msgsend(targetpid, msgdatat, sz), 0);
+		fprint(2, "sys_msgsend(%ld, %d, %#ux, %ud)\n", targetpid, tag, msgdata, sz);
+	P->R[0] = noteerr(sys_msgsend(targetpid, tag, msgdatat, sz), 0);
 	if(copied)
 		free(msgdatat);
 }
