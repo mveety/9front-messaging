@@ -46,9 +46,6 @@ struct Mouseinfo
 	Mousestate	queue[16];	/* circular buffer of click events */
 	ulong	ri;		/* read index into queue */
 	ulong	wi;		/* write index into queue */
-	int ballscroll; /* trackball scrolling */
-	int ymovement; /* movement since last threshold */
-	int threshold; /* movement threshold */
 };
 
 enum
@@ -59,7 +56,6 @@ enum
 	CMblank,
 	CMblanktime,
 	CMtwitch,
-	CMballscroll,
 	CMwildcard,
 };
 
@@ -71,7 +67,6 @@ static Cmdtab mousectlmsg[] =
 	CMblank,	"blank",	1,
 	CMblanktime,	"blanktime",	2,
 	CMtwitch,	"twitch",	1,
-	CMballscroll, "ballscroll", 0,
 	CMwildcard,	"*",		0,
 };
 
@@ -375,7 +370,6 @@ mousewrite(Chan *c, void *va, long n, vlong)
 	char buf[64];
 	int b, z, msec;
 	Mousestate *m;
-	int b45;
 
 	p = va;
 	switch((ulong)c->qid.path){
@@ -436,32 +430,6 @@ mousewrite(Chan *c, void *va, long n, vlong)
 			mouseblankscreen(0);
 			break;
 
-		case CMballscroll:
-			if(cb->nf == 1){
-				if(mouse.ballscroll)
-					mouse.ballscroll = 0;
-				else {
-					mouse.ballscroll = 1;
-					mouse.ymovement = 0;
-					mouse.threshold = 100;
-				}
-			} else if(cb->nf == 2){
-				if(strcmp(cb->f[1], "1") == 0 || strcmp(cb->f[1], "on") == 0){
-					mouse.ballscroll = 1;
-					mouse.ymovement = 0;
-					mouse.threshold = 100;
-				} else
-					mouse.ballscroll = 0;
-			} else if(cb->nf >= 3){
-				if(strcmp(cb->f[1], "1") == 0 || strcmp(cb->f[1], "on") == 0){
-					mouse.ballscroll = 1;
-					mouse.ymovement = 0;
-					mouse.threshold = strtoul(cb->f[2], 0, 0);
-				} else
-					mouse.ballscroll = 0;
-			}
-			break;
-
 		case CMwildcard:
 			mousectl(cb);
 			break;
@@ -488,25 +456,9 @@ mousewrite(Chan *c, void *va, long n, vlong)
 		if(msec == 0)
 			msec = TK2MS(MACHP(0)->ticks);
 
-		ilock(&mouse);
-		if(!mouse.ballscroll){
-			/*
-			if ballscrolling is disabled, mask out b4 and b5,
-			then set b2. The original behaviour in nusb/kb is
-			b2 = b2||b4. Replicate that.
-			*/
-			b45 = b & ((1<<5)|(1<<6));
-			b &= ~((1<<5)|(1<<6));
-			if(b45 & (1<<5))
-				b |= (1<<1);
-			/* exclude wheel */
-			z = b & (8|16);
-			b ^= z;
-		} else
-			z = b & (8|16|(1<<5)|(1<<6));
+		/* exclude wheel */
+		z = b & (8|16);
 		b ^= z;
-
-
 
 		m = (Mousestate*)c->aux;
 		m->xy = pt;
@@ -514,17 +466,14 @@ mousewrite(Chan *c, void *va, long n, vlong)
 		b ^= m->buttons;
 		m->buttons ^= b;
 
-
+		ilock(&mouse);
 		mouse.inbuttons = (m->buttons & b) | (mouse.inbuttons & ~b);
 		b = mouse.buttons & ~b;
+		iunlock(&mouse);
 
 		/* include wheel */
-		if(!mouse.ballscroll)
-			b &= ~(8|16);
-		else
-			b &= ~(8|16|(1<<5)|(1<<6));
+		b &= ~(8|16);
 		b ^= z;
-		iunlock(&mouse);
 
 		if(buf[0] == 'A')
 			absmousetrack(pt.x, pt.y, b, msec);
@@ -684,26 +633,6 @@ absmousetrack(int x, int y, int b, ulong msec)
 		y = i->clipr.max.y-1;
 
 	ilock(&mouse);
-	if(mouse.ballscroll){
-		if(b & (1<<5)){
-			if(mouse.xy.y < y)
-				mouse.ymovement += y;
-			else if(mouse.xy.y > y)
-				mouse.ymovement -= y;
-
-			if(abs(mouse.ymovement) > mouse.threshold){
-				if(mouse.ymovement < 0)
-					b |= (1<<3);
-				else if(mouse.ymovement > 0)
-					b |= (1<<4);
-				mouse.ymovement = 0;
-			}
-			x = mouse.xy.x;
-			y = mouse.xy.y;
-		} else
-			mouse.ymovement = 0;
-	}
-	b &= ~((1<<5)|(1<<6)); // nuke b4 and b5
 	mouse.xy = Pt(x, y);
 	lastb = mouse.buttons;
 	b |= mouse.inbuttons;
